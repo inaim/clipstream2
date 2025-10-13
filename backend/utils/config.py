@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     BACKEND_BASE_URL: str = os.environ.get('BACKEND_BASE_URL', 'http://localhost:8001')
     FRONTEND_BASE_URL: str = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:5173')
 
+    # Development helpers
+    DEV_SMS: bool = os.environ.get('DEV_SMS', 'false').lower() in ('1', 'true', 'yes')
+
     GOOGLE_CLIENT_ID: str = os.environ.get('GOOGLE_CLIENT_ID', '235194927143-j2i2l1v0uf80rddpsd7qucejn3roo31a.apps.googleusercontent.com')
     GOOGLE_CLIENT_SECRET: str = os.environ.get('GOOGLE_CLIENT_SECRET', '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')
     FACEBOOK_CLIENT_ID: str = os.environ.get('FACEBOOK_CLIENT_ID', 'your-facebook-client-id')

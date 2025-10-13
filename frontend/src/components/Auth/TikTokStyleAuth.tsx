@@ -95,7 +95,8 @@ export function TikTokStyleAuth({ onClose }: TikTokStyleAuthProps) {
     setVerifyingOtp(true);
     setError('');
     try {
-      await (useAuth() as any).verifyPhoneOtp?.(phoneNumber, otpCode);
+      if (!verifyPhoneOtp) throw new Error('Phone OTP verification not supported');
+      await verifyPhoneOtp(phoneNumber, otpCode);
       // on success, close modal or navigate to landing
       setStep('landing');
       setOtpSent(false);

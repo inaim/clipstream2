@@ -63,6 +63,10 @@ async def phone_send(request: Request, background_tasks: BackgroundTasks):
     # Send SMS in background
     background_tasks.add_task(_send_sms_via_provider, phone, code)
 
+    # In development, optionally return the OTP in the response to facilitate testing
+    if getattr(settings, 'DEV_SMS', False):
+        return {"status": "ok", "message": "OTP sent (dev)", "code": code}
+
     return {"status": "ok", "message": "OTP sent (dev)"}
 
 
@@ -129,6 +133,11 @@ async def social_auth_redirect(request: Request, provider: str):
         raise HTTPException(status_code=400, detail='Provider not configured')
     # Use a path-based callback to avoid query-string redirect URI mismatches
     callback_url = str(request.url_for('social_auth_callback', provider=provider))
+    # Debug: log the redirect URI we will request
+    try:
+        print(f"[OIDC DEBUG] Initiating auth for provider={provider}, callback_url={callback_url}")
+    except Exception:
+        pass
     client = oauth.create_client(provider)
     return await client.authorize_redirect(request, callback_url)
 
@@ -140,6 +149,14 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
     Exchanges the provider code for tokens, extracts a stable provider id/email,
     creates an application access token (JWT) and redirects to the frontend callback.
     """
+    # Debug: log incoming callback request details
+    try:
+        print(f"[OIDC DEBUG] Callback incoming: url={str(request.url)}, provider_arg={provider}, query_params={dict(request.query_params)}")
+        # Log whether Google client id is configured (do NOT log secrets)
+        print(f"[OIDC DEBUG] GOOGLE_CLIENT_ID present: {bool(getattr(settings, 'GOOGLE_CLIENT_ID', None))}")
+    except Exception:
+        pass
+
     if provider not in oauth._clients:
         # Check if provider provided as query param (legacy flows)
         q_provider = request.query_params.get('provider')
@@ -182,7 +199,27 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
         redirect_url = f"{frontend_callback}?token={app_jwt}&user_id={app_sub}&provider={provider}"
         return RedirectResponse(redirect_url)
     except OAuthError as e:
-        raise HTTPException(status_code=401, detail=f'OAuth error: {e}')
+        # Detailed logging for debugging token exchange failures
+        try:
+            print("OAuthError:", repr(e))
+            # authlib may attach a response object with details
+            resp = getattr(e, 'response', None)
+            if resp is not None:
+                try:
+                    # try async text() first
+                    text = await getattr(resp, 'text')()
+                except Exception:
+                    try:
+                        text = getattr(resp, 'text', None) or str(resp)
+                    except Exception:
+                        text = str(resp)
+                print("Provider response:", text)
+        except Exception as _logerr:
+            print("Error while logging OAuthError details:", _logerr)
+
+        # Return a helpful error message for local debugging. In production,
+        # avoid returning provider responses or secrets to the client.
+        raise HTTPException(status_code=401, detail=f'OAuth token exchange failed: {str(e)}')
 
 
 @router.get('/social/callback')
