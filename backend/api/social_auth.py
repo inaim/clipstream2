@@ -2,8 +2,100 @@ from fastapi import APIRouter, Request, HTTPException
 from starlette.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from utils.config import settings
+from utils.auth import create_access_token
+
+from typing import Optional
+import random
+import time
+import asyncio
+from fastapi import BackgroundTasks
+import json
 
 router = APIRouter()
+
+# Simple in-memory OTP store as fallback. In production use Redis.
+_otp_store = {}
+
+def _store_otp(phone: str, code: str, ttl: int = 300):
+    expires_at = int(time.time()) + ttl
+    _otp_store[phone] = {"code": code, "expires_at": expires_at}
+
+def _verify_otp_local(phone: str, code: str) -> bool:
+    entry = _otp_store.get(phone)
+    if not entry:
+        return False
+    if int(time.time()) > entry["expires_at"]:
+        del _otp_store[phone]
+        return False
+    if entry["code"] == code:
+        del _otp_store[phone]
+        return True
+    return False
+
+async def _send_sms_via_provider(phone: str, code: str):
+    # Placeholder - integrate Twilio or other provider here in production
+    # For dev, we just log. In real app, raise if SMS provider is not configured.
+    print(f"[DEV SMS] Sending OTP {code} to {phone}")
+    await asyncio.sleep(0.1)
+
+
+@router.post('/phone/send')
+async def phone_send(request: Request, background_tasks: BackgroundTasks):
+    data = await request.json()
+    phone = data.get('phone')
+    if not phone:
+        raise HTTPException(status_code=400, detail='Missing phone')
+    # Generate 6-digit OTP
+    code = f"{random.randint(0, 999999):06d}"
+
+    # Prefer Redis if configured (simple sync for now), otherwise in-memory
+    try:
+        if settings.REDIS_URL:
+            import aioredis
+            redis = aioredis.from_url(settings.REDIS_URL)
+            await redis.set(f"otp:{phone}", code, ex=300)
+        else:
+            _store_otp(phone, code)
+    except Exception:
+        # Fallback to in-memory store on any error
+        _store_otp(phone, code)
+
+    # Send SMS in background
+    background_tasks.add_task(_send_sms_via_provider, phone, code)
+
+    return {"status": "ok", "message": "OTP sent (dev)"}
+
+
+@router.post('/phone/verify')
+async def phone_verify(request: Request):
+    data = await request.json()
+    phone = data.get('phone')
+    code = data.get('code')
+    if not phone or not code:
+        raise HTTPException(status_code=400, detail='Missing phone or code')
+
+    verified = False
+    try:
+        if settings.REDIS_URL:
+            import aioredis
+            redis = aioredis.from_url(settings.REDIS_URL)
+            stored = await redis.get(f"otp:{phone}")
+            if stored and stored.decode() == code:
+                verified = True
+                await redis.delete(f"otp:{phone}")
+        else:
+            verified = _verify_otp_local(phone, code)
+    except Exception:
+        verified = _verify_otp_local(phone, code)
+
+    if not verified:
+        raise HTTPException(status_code=401, detail='Invalid or expired code')
+
+    # Create or find user (for now use phone as subject)
+    app_jwt = create_access_token({"sub": f"phone:{phone}"})
+
+    return {"token": app_jwt, "user_id": f"phone:{phone}"}
+
 
 oauth = OAuth()
 
@@ -41,21 +133,70 @@ async def social_auth_redirect(request: Request, provider: str):
     return await client.authorize_redirect(request, callback_url)
 
 @router.get('/social/{provider}/callback')
-async def social_auth_callback(request: Request, provider: str):
+async def social_auth_callback(request: Request, provider: str, code: Optional[str] = None):
+    """
+    Path-based callback: /social/{provider}/callback
+    Also accepts provider via query param if needed by older flows.
+    Exchanges the provider code for tokens, extracts a stable provider id/email,
+    creates an application access token (JWT) and redirects to the frontend callback.
+    """
     if provider not in oauth._clients:
-        raise HTTPException(status_code=400, detail='Provider not configured')
+        # Check if provider provided as query param (legacy flows)
+        q_provider = request.query_params.get('provider')
+        if q_provider and q_provider in oauth._clients:
+            provider = q_provider
+        else:
+            raise HTTPException(status_code=400, detail='Provider not configured')
+
     client = oauth.create_client(provider)
     try:
         token = await client.authorize_access_token(request)
+
+        # Extract profile info in a provider-aware way
+        profile = {}
+        provider_user_id = None
+        provider_email = None
+
         if provider == 'google':
             userinfo = await client.get('userinfo')
             profile = userinfo.json()
+            provider_user_id = profile.get('sub') or profile.get('id')
+            provider_email = profile.get('email')
         elif provider == 'facebook':
             userinfo = await client.get('me?fields=id,name,email')
             profile = userinfo.json()
+            provider_user_id = profile.get('id')
+            provider_email = profile.get('email')
         else:
-            profile = {}
-        # Here: create/link user in DB, issue JWT, etc.
-        return profile
+            # Fallback: include raw token info
+            profile = token
+
+        # TODO: create or find user in DB using provider and provider_user_id or email
+        # For now, create an app JWT with the provider id as subject.
+        app_sub = provider_user_id or provider_email or f"{provider}:unknown"
+        app_jwt = create_access_token({"sub": str(app_sub)})
+
+        # Build frontend redirect. Use FRONTEND_BASE_URL and our frontend AuthCallback handler
+        frontend_callback = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/callback"
+        # Prefer returning token via a short-lived code or secure cookie in production.
+        redirect_url = f"{frontend_callback}?token={app_jwt}&user_id={app_sub}&provider={provider}"
+        return RedirectResponse(redirect_url)
     except OAuthError as e:
         raise HTTPException(status_code=401, detail=f'OAuth error: {e}')
+
+
+@router.get('/social/callback')
+async def social_auth_callback_query(request: Request):
+    """
+    Legacy endpoint that accepts provider as a query param: /social/callback?provider=google
+    Redirects to the path-based callback handler to keep logic in one place.
+    """
+    provider = request.query_params.get('provider')
+    if not provider:
+        raise HTTPException(status_code=400, detail='Missing provider')
+    # Redirect to the canonical path-based callback handler
+    callback_path = str(request.url_for('social_auth_callback', provider=provider))
+    # Preserve other query params
+    qs = request.scope.get('query_string', b'').decode()
+    # If the original query string included code/state, pass it through
+    return RedirectResponse(f"{callback_path}?{qs}")

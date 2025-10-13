@@ -14,12 +14,15 @@ interface TikTokStyleAuthProps {
 type AuthStep = 'landing' | 'signup' | 'login' | 'phone-signup' | 'email-signup';
 
 export function TikTokStyleAuth({ onClose }: TikTokStyleAuthProps) {
-  const { signIn, signUp, signInWithSocial } = useAuth();
+  const { signIn, signUp, signInWithSocial, sendPhoneOtp, verifyPhoneOtp } = useAuth();
   const [step, setStep] = useState<AuthStep>('landing');
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
 
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -55,14 +58,93 @@ export function TikTokStyleAuth({ onClose }: TikTokStyleAuthProps) {
       return;
     }
 
-    setLoading(true);
+    // Phone flow: request OTP and show code input
+    if (authMethod === 'phone') {
+      if (!phoneNumber) {
+        setError('Please enter a valid phone number');
+        return;
+      }
+      setLoading(true);
+      try {
+        if (!sendPhoneOtp) throw new Error('Phone OTP not supported');
+        await sendPhoneOtp(phoneNumber);
+        setOtpSent(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t('auth.failedToSignUp'));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
+    setLoading(true);
     try {
       await signUp(email, password, username, displayName);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('auth.failedToSignUp'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode || !phoneNumber) {
+      setError('Please enter the 6-digit code');
+      return;
+    }
+    setVerifyingOtp(true);
+    setError('');
+    try {
+      await (useAuth() as any).verifyPhoneOtp?.(phoneNumber, otpCode);
+      // on success, close modal or navigate to landing
+      setStep('landing');
+      setOtpSent(false);
+      setOtpCode('');
+      if (onClose) onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OTP verification failed');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  // Login: send OTP for phone-based login
+  const handleLoginSendOtp = async () => {
+    setError('');
+    if (!phoneNumber) {
+      setError('Please enter a phone number');
+      return;
+    }
+    setLoading(true);
+    try {
+      if (!sendPhoneOtp) throw new Error('Phone OTP not supported');
+      await sendPhoneOtp(phoneNumber);
+      setOtpSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoginVerifyOtp = async () => {
+    setError('');
+    if (!otpCode) {
+      setError('Please enter the code');
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      if (!verifyPhoneOtp) throw new Error('Phone OTP verification not supported');
+      await verifyPhoneOtp(phoneNumber, otpCode);
+      setOtpSent(false);
+      setOtpCode('');
+      if (onClose) onClose();
+      setStep('landing');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'OTP verification failed');
+    } finally {
+      setVerifyingOtp(false);
     }
   };
 
@@ -207,6 +289,36 @@ export function TikTokStyleAuth({ onClose }: TikTokStyleAuthProps) {
                 </button>
               </div>
 
+              {/* Phone login: show phone input + OTP flow */}
+              {authMethod === 'phone' && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-slate-700">Phone</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="flex-1 px-4 py-3 border border-slate-300 rounded-xl outline-none"
+                      placeholder="e.g. +15551234567"
+                    />
+                    {!otpSent ? (
+                      <button onClick={handleLoginSendOtp} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Send code</button>
+                    ) : (
+                      <button onClick={handleLoginVerifyOtp} className="px-4 py-2 bg-green-600 text-white rounded-lg">Verify</button>
+                    )}
+                  </div>
+                  {otpSent && (
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Enter 6-digit code"
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none"
+                    />
+                  )}
+                </div>
+              )}
+
               {/* Divider + social buttons to match signup */}
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
@@ -267,6 +379,29 @@ export function TikTokStyleAuth({ onClose }: TikTokStyleAuthProps) {
                 <p className="text-xs text-gray-500 mt-2">
                   We'll send you a code to verify your number
                 </p>
+
+                <div className="mt-3">
+                  {!otpSent ? (
+                    <button type="button" onClick={async () => {
+                      try {
+                        setError('');
+                        setLoading(true);
+                        if (!sendPhoneOtp) throw new Error('Phone OTP not supported');
+                        await sendPhoneOtp(phoneNumber);
+                        setOtpSent(true);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to send OTP');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }} className="w-full py-3 bg-blue-600 text-white rounded-lg">Send code</button>
+                  ) : (
+                    <div className="space-y-2">
+                      <input type="text" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="Enter code" className="w-full px-4 py-3 border border-gray-300 rounded-lg" />
+                      <button type="button" onClick={handleVerifyOtp} className="w-full py-3 bg-green-600 text-white rounded-lg">Verify code</button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

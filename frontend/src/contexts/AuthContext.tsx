@@ -13,6 +13,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, username: string, displayName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithSocial: (provider: string) => Promise<void>;
+  sendPhoneOtp?: (phone: string) => Promise<void>;
+  verifyPhoneOtp?: (phone: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -102,6 +104,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = redirectUrl;
   };
 
+  const sendPhoneOtp = async (phone: string) => {
+    const res = await fetch(`${API_BASE}/api/v1/auth/phone/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || 'Failed to send OTP');
+    }
+  };
+
+  const verifyPhoneOtp = async (phone: string, code: string) => {
+    const res = await fetch(`${API_BASE}/api/v1/auth/phone/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(txt || 'OTP verification failed');
+    }
+    const data = await res.json();
+    const token = data.token;
+    const userId = data.user_id;
+    localStorage.setItem('clipstream_token', token);
+    localStorage.setItem('clipstream_user_id', userId);
+    await loadProfile(userId, token);
+    setUser({ user_id: userId, email: '' });
+  };
+
   const signOut = async () => {
     localStorage.removeItem('clipstream_token');
     localStorage.removeItem('clipstream_user_id');
@@ -110,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithSocial, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signInWithSocial, sendPhoneOtp, verifyPhoneOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
