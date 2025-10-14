@@ -11,6 +11,7 @@ from typing import Optional
 import requests
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Header
+import surreal
 
 # Simple config
 SECRET_KEY = os.environ.get("DEMO_SECRET_KEY", "devsecret")
@@ -259,16 +260,29 @@ async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled"
 @app.get("/api/playback/{video_id}")
 async def playback_url(video_id: int):
     # Return a URL that the frontend can use to play the uploaded file via CDN
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT filename FROM videos WHERE id = ?", (video_id,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Not found")
-    filename = row[0]
-    # CDN is served on port 8001; origin uploads are mounted at /uploads
-    url = f"http://localhost:8001/uploads/{filename}"
+    # Prefer SurrealDB when available
+    filename = None
+    try:
+        if surreal.is_available():
+            vid = surreal.get_video(video_id)
+            if vid and 'filename' in vid:
+                filename = vid.get('filename')
+    except Exception:
+        # fall back to sqlite
+        filename = None
+
+    if not filename:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT filename FROM videos WHERE id = ?", (video_id,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        filename = row[0]
+
+    # CDN is served on port 8003 in this demo; origin uploads are mounted at /uploads
+    url = f"http://localhost:8003/uploads/{filename}"
     return {"playback_url": url}
 
 
@@ -292,6 +306,15 @@ async def record_view(video_id: int, user_id: Optional[int] = None, duration: fl
 
 @app.get("/api/videos/{video_id}")
 async def get_video(video_id: int):
+    # Prefer SurrealDB when available
+    try:
+        if surreal.is_available():
+            vid = surreal.get_video(video_id)
+            if vid:
+                return vid
+    except Exception:
+        pass
+
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos WHERE id = ?", (video_id,))
@@ -304,6 +327,14 @@ async def get_video(video_id: int):
 
 @app.get("/api/videos")
 async def list_videos(limit: int = 50, offset: int = 0):
+    # Prefer SurrealDB when available
+    try:
+        if surreal.is_available():
+            raw = surreal.select_videos(limit=limit, offset=offset)
+            return raw
+    except Exception:
+        pass
+
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
@@ -316,7 +347,7 @@ async def list_videos(limit: int = 50, offset: int = 0):
         u = cur.fetchone()
         profile = { 'user_id': u[0], 'email': u[1], 'display_name': u[2] } if u else None
         # construct video_url via CDN
-        vid['video_url'] = f"http://localhost:8001/uploads/{vid['filename']}"
+        vid['video_url'] = f"http://localhost:8003/uploads/{vid['filename']}"
         vid['profiles'] = profile
         # placeholder counts
         cur.execute("SELECT COUNT(*) FROM views WHERE video_id = ?", (vid['id'],))

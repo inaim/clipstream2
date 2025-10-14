@@ -46,8 +46,8 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    """Get current user from JWT token"""
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """Get current user ID from JWT token"""
     try:
         payload = jwt.decode(
             credentials.credentials,
@@ -57,7 +57,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return {"user_id": user_id}
+        return user_id
     except JWTError as e:
         print(f"JWT error: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")

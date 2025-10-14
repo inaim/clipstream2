@@ -3,6 +3,7 @@ from starlette.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from utils.config import settings
 from utils.auth import create_access_token
+from db.surrealdb_client import db_client
 
 from typing import Optional
 import random
@@ -222,15 +223,33 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
             # Fallback: include raw token info
             profile = token
 
-        # TODO: create or find user in DB using provider and provider_user_id or email
-        # For now, create an app JWT with the provider id as subject.
-        app_sub = provider_user_id or provider_email or f"{provider}:unknown"
-        app_jwt = create_access_token({"sub": str(app_sub)})
+        # Create or find user in DB using provider email
+        if not provider_email:
+            raise HTTPException(status_code=400, detail="Email not provided by OAuth provider")
+
+        # Try to find existing user by email
+        user = await db_client.get_user_by_email(provider_email)
+
+        if not user:
+            # Create new user with OAuth profile data
+            display_name = profile.get('name') or profile.get('display_name') or provider_email.split('@')[0]
+            # For OAuth users, we don't have a password, so use a random hash
+            import secrets
+            random_password_hash = secrets.token_urlsafe(32)
+            user = await db_client.create_user(provider_email, random_password_hash, display_name)
+
+            # Give new user welcome bonus
+            user_id = str(user['id'])
+            await db_client.earn_tokens(user_id, 50, "oauth_signup_bonus")
+        else:
+            user_id = str(user['id'])
+
+        # Create JWT token with user_id
+        app_jwt = create_access_token({"sub": user_id})
 
         # Build frontend redirect. Use FRONTEND_BASE_URL and our frontend AuthCallback handler
         frontend_callback = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/callback"
-        # Prefer returning token via a short-lived code or secure cookie in production.
-        redirect_url = f"{frontend_callback}?token={app_jwt}&user_id={app_sub}&provider={provider}"
+        redirect_url = f"{frontend_callback}?token={app_jwt}&user_id={user_id}&provider={provider}"
         return RedirectResponse(redirect_url)
     except OAuthError as e:
         # Detailed logging for debugging token exchange failures
