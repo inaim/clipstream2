@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.clipstream.app',
+  appId: 'com.finailabz.clipstream',
   appName: 'ClipStream',
   webDir: '../../frontend/dist',
   server: {
