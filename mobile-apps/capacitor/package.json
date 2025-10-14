@@ -1,0 +1,42 @@
+{
+  "name": "clipstream-mobile",
+  "version": "1.0.0",
+  "description": "ClipStream Mobile Apps for iOS and Android",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd ../../frontend && npm run build && cd ../mobile-apps/capacitor",
+    "sync": "npx cap sync",
+    "ios": "npx cap open ios",
+    "android": "npx cap open android",
+    "add:ios": "npx cap add ios",
+    "add:android": "npx cap add android",
+    "copy": "npx cap copy",
+    "update": "npx cap update"
+  },
+  "keywords": [
+    "clipstream",
+    "video",
+    "social",
+    "mobile"
+  ],
+  "author": "FinAI Labz",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^5.5.1",
+    "@capacitor/app": "^5.0.6",
+    "@capacitor/camera": "^5.0.7",
+    "@capacitor/core": "^5.5.1",
+    "@capacitor/filesystem": "^5.1.4",
+    "@capacitor/haptics": "^5.0.6",
+    "@capacitor/ios": "^5.5.1",
+    "@capacitor/keyboard": "^5.0.6",
+    "@capacitor/push-notifications": "^5.1.0",
+    "@capacitor/share": "^5.0.6",
+    "@capacitor/splash-screen": "^5.0.6",
+    "@capacitor/status-bar": "^5.0.6"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.5.1"
+  }
+}
+

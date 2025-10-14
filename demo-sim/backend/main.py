@@ -170,32 +170,20 @@ async def slow_content(response: Response):
 
 @app.post("/api/signup")
 async def signup(email: str, password: str, display_name: Optional[str] = None):
-    # When SurrealDB is available, create the user there first (authoritative)
-    user_id = None
+    """Create a user in SurrealDB and return a JWT. If Surreal is unavailable and not authoritative, fall back to sqlite."""
     password_hash = get_password_hash(password)
     if surreal.is_available():
         try:
-            sid = surreal.create_user(email, display_name or '')
-            # If Surreal returned an id, use it; otherwise fall back to sqlite id
-            if sid and sid != -1:
-                # still store auth info locally so demo login works via sqlite
-                conn = get_db()
-                cur = conn.cursor()
-                try:
-                    cur.execute("INSERT OR IGNORE INTO users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)",
-                                (sid, email, password_hash, display_name or email.split('@')[0], datetime.utcnow().isoformat()))
-                    conn.commit()
-                finally:
-                    conn.close()
-                user_id = sid
-        except Exception:
-            # If authoritative, fail fast
+            uid = surreal.create_user_with_password(email, password_hash, display_name or '')
+            if uid and uid != -1:
+                token = create_access_token({"sub": str(uid)})
+                return {"access_token": token, "user_id": uid}
+        except Exception as e:
             if SURREAL_AUTHORITATIVE:
                 raise HTTPException(status_code=503, detail="SurrealDB unavailable or write failed")
-            user_id = None
 
-    # Fallback to sqlite if Surreal not available or failed
-    if not user_id:
+    # Non-authoritative fallback to sqlite for demo convenience
+    if not SURREAL_AUTHORITATIVE:
         conn = get_db()
         cur = conn.cursor()
         try:
@@ -203,13 +191,14 @@ async def signup(email: str, password: str, display_name: Optional[str] = None):
                         (email, password_hash, display_name or email.split('@')[0], datetime.utcnow().isoformat()))
             conn.commit()
             user_id = cur.lastrowid
+            conn.close()
+            token = create_access_token({"sub": str(user_id)})
+            return {"access_token": token, "user_id": user_id}
         except sqlite3.IntegrityError:
             conn.close()
             raise HTTPException(status_code=400, detail="Email already registered")
-        conn.close()
 
-    token = create_access_token({"sub": str(user_id)})
-    return {"access_token": token, "user_id": user_id}
+    raise HTTPException(status_code=503, detail="User creation failed")
 
 
 # Compatibility endpoint for frontend: /api/v1/auth/register
@@ -220,19 +209,34 @@ async def register_v1(email: str, password: str, display_name: Optional[str] = N
 
 @app.post("/api/login")
 async def login(email: str, password: str):
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    user_id = row[0]
-    pwd_hash = row[1]
-    if not verify_password(password, pwd_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": str(user_id)})
-    return {"access_token": token, "user_id": user_id}
+    # Prefer SurrealDB for auth lookup
+    if surreal.is_available():
+        try:
+            p = surreal.get_person_by_email(email)
+            if p and 'password_hash' in p and verify_password(password, p['password_hash']):
+                user_id = p.get('id')
+                token = create_access_token({"sub": str(user_id)})
+                return {"access_token": token, "user_id": user_id}
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        except HTTPException:
+            raise
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail="SurrealDB unavailable")
+
+    # Fallback to sqlite if allowed
+    if not SURREAL_AUTHORITATIVE:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+        conn.close()
+        if not row or not verify_password(password, row[1]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token({"sub": str(row[0])})
+    return {"access_token": token, "user_id": row[0]}
+
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 # Compatibility endpoint for frontend: /api/v1/auth/login
@@ -260,20 +264,22 @@ async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled"
     # Use authenticated user if owner_id not provided
     owner = owner_id or current_user
 
-    video_id = None
-    # If Surreal is available, create video record there (authoritative)
+    # Create video record in SurrealDB (authoritative). If Surreal not available and non-authoritative, fall back to sqlite.
     if surreal.is_available():
         try:
             vid = surreal.create_video(owner, title, filename, content_hash)
             if vid and vid != -1:
                 video_id = vid
+            else:
+                raise Exception('surreal create_video returned invalid id')
         except Exception:
             if SURREAL_AUTHORITATIVE:
                 raise HTTPException(status_code=503, detail="SurrealDB unavailable or write failed")
             video_id = None
+    else:
+        video_id = None
 
-    # Fallback to sqlite
-    if not video_id:
+    if not video_id and not SURREAL_AUTHORITATIVE:
         conn = get_db()
         cur = conn.cursor()
         cur.execute("INSERT INTO videos (owner_id, title, filename, content_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -298,16 +304,17 @@ async def playback_url(video_id: int):
     # Return a URL that the frontend can use to play the uploaded file via CDN
     # Prefer SurrealDB when available
     filename = None
-    try:
-        if surreal.is_available():
+    # Prefer SurrealDB when available
+    filename = None
+    if surreal.is_available():
+        try:
             vid = surreal.get_video(video_id)
             if vid and 'filename' in vid:
                 filename = vid.get('filename')
-    except Exception:
-        # fall back to sqlite
-        filename = None
+        except Exception:
+            filename = None
 
-    if not filename:
+    if not filename and not SURREAL_AUTHORITATIVE:
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT filename FROM videos WHERE id = ?", (video_id,))
@@ -316,6 +323,8 @@ async def playback_url(video_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="Not found")
         filename = row[0]
+    if not filename:
+        raise HTTPException(status_code=404, detail="Not found")
 
     # CDN is served on port 8003 in this demo; origin uploads are mounted at /uploads
     url = f"http://localhost:8003/uploads/{filename}"
@@ -339,76 +348,85 @@ async def record_view(video_id: int, user_id: Optional[int] = None, duration: fl
         except Exception:
             if SURREAL_AUTHORITATIVE:
                 raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
-            # fall back to sqlite
-            pass
+            # fall back to sqlite if allowed
 
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO views (video_id, user_id, duration, counted_at) VALUES (?, ?, ?, ?)",
-                (video_id, uid, duration, counted_at))
-    cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)",
-                (uid, amount, 'view_reward', video_id, counted_at))
-    conn.commit()
-    conn.close()
-    return { 'status': 'ok', 'credited': amount }
+    if not SURREAL_AUTHORITATIVE:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO views (video_id, user_id, duration, counted_at) VALUES (?, ?, ?, ?)",
+                    (video_id, uid, duration, counted_at))
+        cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (uid, amount, 'view_reward', video_id, counted_at))
+        conn.commit()
+        conn.close()
+        return { 'status': 'ok', 'credited': amount }
+
+    raise HTTPException(status_code=503, detail='SurrealDB unavailable')
 
 
 @app.get("/api/videos/{video_id}")
 async def get_video(video_id: int):
     # Prefer SurrealDB when available
-    try:
-        if surreal.is_available():
+    # Prefer SurrealDB when available
+    if surreal.is_available():
+        try:
             vid = surreal.get_video(video_id)
             if vid:
                 return vid
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos WHERE id = ?", (video_id,))
-    row = cur.fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Not found")
-    return dict(row)
+    if not SURREAL_AUTHORITATIVE:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos WHERE id = ?", (video_id,))
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Not found")
+        return dict(row)
+
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 @app.get("/api/videos")
 async def list_videos(limit: int = 50, offset: int = 0):
-    # Prefer SurrealDB when available
-    try:
-        if surreal.is_available():
+    if surreal.is_available():
+        try:
             raw = surreal.select_videos(limit=limit, offset=offset)
             return raw
-    except Exception:
-        pass
-
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
-    rows = cur.fetchall()
-    videos = []
-    for r in rows:
-        vid = dict(r)
-        # fetch owner profile
-        cur.execute("SELECT id as user_id, email, display_name FROM users WHERE id = ?", (vid['owner_id'],))
-        u = cur.fetchone()
-        profile = { 'user_id': u[0], 'email': u[1], 'display_name': u[2] } if u else None
-        # construct video_url via CDN
-        vid['video_url'] = f"http://localhost:8003/uploads/{vid['filename']}"
-        vid['profiles'] = profile
-        # placeholder counts
-        cur.execute("SELECT COUNT(*) FROM views WHERE video_id = ?", (vid['id'],))
-        vid['views_count'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM (SELECT 1 FROM likes WHERE video_id = ?)", (vid['id'],))
-        try:
-            vid['likes_count'] = cur.fetchone()[0]
         except Exception:
-            vid['likes_count'] = 0
-        videos.append(vid)
-    conn.close()
-    return videos
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable')
+
+    if not SURREAL_AUTHORITATIVE:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+        rows = cur.fetchall()
+        videos = []
+        for r in rows:
+            vid = dict(r)
+            # fetch owner profile
+            cur.execute("SELECT id as user_id, email, display_name FROM users WHERE id = ?", (vid['owner_id'],))
+            u = cur.fetchone()
+            profile = { 'user_id': u[0], 'email': u[1], 'display_name': u[2] } if u else None
+            # construct video_url via CDN
+            vid['video_url'] = f"http://localhost:8003/uploads/{vid['filename']}"
+            vid['profiles'] = profile
+            # placeholder counts
+            cur.execute("SELECT COUNT(*) FROM views WHERE video_id = ?", (vid['id'],))
+            vid['views_count'] = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM (SELECT 1 FROM likes WHERE video_id = ?)", (vid['id'],))
+            try:
+                vid['likes_count'] = cur.fetchone()[0]
+            except Exception:
+                vid['likes_count'] = 0
+            videos.append(vid)
+        conn.close()
+        return videos
+
+    raise HTTPException(status_code=503, detail='SurrealDB unavailable')
 
 
 @app.get("/api/likes")

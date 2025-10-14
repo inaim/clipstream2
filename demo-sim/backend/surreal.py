@@ -113,6 +113,17 @@ def create_user(email: str, display_name: str = '') -> int:
         return -1
 
 
+def create_user_with_password(email: str, password_hash: str, display_name: str = '') -> int:
+    """Create a person record including a password_hash field and return its id."""
+    content = {'email': email, 'display_name': display_name, 'password_hash': password_hash}
+    sql = f"INSERT person CONTENT {json.dumps(content)} RETURN id;"
+    res = exec_sql(sql)
+    try:
+        return res[0][0]['id']
+    except Exception:
+        return -1
+
+
 def create_video(owner_id: int, title: str, filename: str, content_hash: str) -> int:
     content = {'owner_id': int(owner_id), 'title': title, 'filename': filename, 'content_hash': content_hash}
     sql = f"INSERT video CONTENT {json.dumps(content)} RETURN id;"
@@ -129,3 +140,29 @@ def update_video_filename(video_id: int, filename: str, status: str = 'ready') -
     st = json.dumps(status)
     sql = f"UPDATE video SET filename = {fn}, status = {st} WHERE id = {int(video_id)};"
     return exec_sql(sql)
+
+
+def get_person_by_email(email: str) -> Optional[dict]:
+    """Return the person record for an email or None."""
+    val = json.dumps(email)
+    sql = f"SELECT * FROM person WHERE email = {val} LIMIT 1;"
+    res = exec_sql(sql)
+    try:
+        if isinstance(res, list) and len(res) > 0 and len(res[0]) > 0:
+            return res[0][0]
+    except Exception:
+        pass
+    return None
+
+
+def find_video_by_filename(filename: str) -> Optional[dict]:
+    """Return video record matching filename or None."""
+    val = json.dumps(filename)
+    sql = f"SELECT * FROM video WHERE filename = {val} LIMIT 1;"
+    res = exec_sql(sql)
+    try:
+        if isinstance(res, list) and len(res) > 0 and len(res[0]) > 0:
+            return res[0][0]
+    except Exception:
+        pass
+    return None

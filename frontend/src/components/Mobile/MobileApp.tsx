@@ -6,6 +6,7 @@ import { MobileProfilePage } from './MobileProfilePage';
 import { InboxPage } from './InboxPage';
 import { UploadModal } from '../Upload/UploadModal';
 import { AIAssistant } from '../AI/AIAssistant';
+import { InstallPrompt } from '../PWA/InstallPrompt';
 
 export function MobileApp() {
   const [currentTab, setCurrentTab] = useState<'home' | 'search' | 'upload' | 'inbox' | 'profile'>('home');
@@ -50,6 +51,7 @@ export function MobileApp() {
       )}
 
       <AIAssistant />
+      <InstallPrompt />
     </div>
   );
 }

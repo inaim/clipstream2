@@ -3,9 +3,10 @@ import { Header } from './Header';
 import { VideoFeed } from '../Feed/VideoFeed';
 import { ProfilePage } from '../Profile/ProfilePage';
 import { UploadModal } from '../Upload/UploadModal';
+import { SettingsPage } from '../Settings/SettingsPage';
 
 export function MainApp() {
-  const [currentView, setCurrentView] = useState<'feed' | 'profile'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'settings'>('feed');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -17,7 +18,7 @@ export function MainApp() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
-        currentView={currentView}
+        currentView={currentView === 'settings' ? 'profile' : currentView}
         onNavigate={setCurrentView}
         onUploadClick={() => setShowUploadModal(true)}
       />
@@ -25,6 +26,8 @@ export function MainApp() {
       <main>
         {currentView === 'feed' ? (
           <VideoFeed key={refreshKey} />
+        ) : currentView === 'settings' ? (
+          <SettingsPage onClose={() => setCurrentView('profile')} />
         ) : (
           <ProfilePage />
         )}

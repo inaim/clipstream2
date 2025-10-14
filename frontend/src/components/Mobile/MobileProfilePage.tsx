@@ -3,6 +3,7 @@ import { User, Settings, Share2, MoreHorizontal, Grid2x2 as Grid, Heart } from '
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from '../Profile/EditProfileModal';
+import { SettingsPage } from '../Settings/SettingsPage';
 import type { Database } from '../../lib/database.types';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -15,6 +16,7 @@ export function MobileProfilePage() {
   const [activeTab, setActiveTab] = useState<'videos' | 'liked'>('videos');
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -79,7 +81,7 @@ export function MobileProfilePage() {
         </button>
         <span className="font-semibold text-lg">@{currentProfile.username}</span>
         <button
-          onClick={signOut}
+          onClick={() => setShowSettings(true)}
           className="p-2 hover:bg-gray-800 rounded-full transition active:scale-95"
         >
           <Settings className="w-6 h-6" />
@@ -210,6 +212,10 @@ export function MobileProfilePage() {
             window.location.reload();
           }}
         />
+      )}
+
+      {showSettings && (
+        <SettingsPage onClose={() => setShowSettings(false)} />
       )}
     </div>
   );
