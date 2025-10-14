@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Upload, Loader } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { uploadViaBackend } from '../../lib/demoApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -39,54 +39,11 @@ export function UploadModal({ onClose, onSuccess }: UploadModalProps) {
     setUploadProgress(0);
 
     try {
-      const fileExt = videoFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      setUploadProgress(30);
-
-      const { error: uploadError } = await supabase.storage
-        .from('videos')
-        .upload(filePath, videoFile);
-
-      if (uploadError) throw uploadError;
-
-      setUploadProgress(60);
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('videos')
-        .getPublicUrl(filePath);
-
-      setUploadProgress(80);
-
-      let location = null;
-      if (navigator.geolocation) {
-        try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject);
-          });
-          location = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-        } catch (err) {
-          console.log('Location not available');
-        }
-      }
-
-      const { error: insertError } = await supabase.from('videos').insert({
-        user_id: user.id,
-        title,
-        description,
-        video_url: publicUrl,
-        thumbnail_url: '',
-        latitude: location?.latitude || null,
-        longitude: location?.longitude || null,
-      });
-
-      if (insertError) throw insertError;
-
+      setUploadProgress(10);
+      // Upload via backend API (stores file and returns playback_url)
+      const result = await uploadViaBackend(videoFile, title);
       setUploadProgress(100);
+      // Optionally you can use result.playback_url to show a preview
       onSuccess();
       onClose();
     } catch (err) {

@@ -1,26 +1,24 @@
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from utils.config import settings
 
-# Configure bcrypt with proper settings
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12
-)
 security = HTTPBearer()
 
 def hash_password(password: str) -> str:
-    """Hash password with bcrypt (max 72 chars)"""
-    # Ensure password is string and truncate
+    """Hash password with bcrypt (max 72 bytes)"""
+    # Ensure password is string
     if not isinstance(password, str):
         password = str(password)
     # Truncate to 72 bytes for bcrypt
-    safe_password = password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-    return pwd_context.hash(safe_password)
+    password_bytes = password.encode('utf-8')[:72]
+    # Generate salt and hash
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    # Return as string
+    return hashed.decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash"""
@@ -29,8 +27,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         if not isinstance(plain_password, str):
             plain_password = str(plain_password)
         # Truncate to 72 bytes for bcrypt
-        safe_password = plain_password.encode('utf-8')[:72].decode('utf-8', 'ignore')
-        return pwd_context.verify(safe_password, hashed_password)
+        password_bytes = plain_password.encode('utf-8')[:72]
+        # Ensure hashed password is bytes
+        if isinstance(hashed_password, str):
+            hashed_bytes = hashed_password.encode('utf-8')
+        else:
+            hashed_bytes = hashed_password
+        # Verify
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
     except Exception as e:
         print(f"Password verification error: {e}")
         return False

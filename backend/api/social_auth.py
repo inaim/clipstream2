@@ -157,6 +157,16 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
     except Exception:
         pass
 
+    # Dev debug: log incoming request info when enabled
+    try:
+        if getattr(settings, 'DEV_SMS', False):
+            print("Incoming OAuth callback URL:", str(request.url))
+            print("Query params:", dict(request.query_params))
+            # show whether client_id is configured
+            print("GOOGLE_CLIENT_ID present:", bool(settings.GOOGLE_CLIENT_ID))
+    except Exception:
+        pass
+
     if provider not in oauth._clients:
         # Check if provider provided as query param (legacy flows)
         q_provider = request.query_params.get('provider')
@@ -168,6 +178,11 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
     client = oauth.create_client(provider)
     try:
         token = await client.authorize_access_token(request)
+        try:
+            if getattr(settings, 'DEV_SMS', False):
+                print("Token result:", token)
+        except Exception:
+            pass
 
         # Extract profile info in a provider-aware way
         profile = {}

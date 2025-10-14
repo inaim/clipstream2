@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  origin:
+    image: nginx:stable
+    ports:
+      - "8080:80"
+    volumes:
+      - ./origin:/usr/share/nginx/html:ro
+      - ./origin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./storage/uploads:/usr/share/nginx/html/uploads
+    networks:
+      - demo-net
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+    networks:
+      - demo-net
+
+  cdn:
+    build: ./cdn
+    ports:
+      - "8001:80"
+    depends_on:
+      - origin
+      - backend
+    networks:
+      - demo-net
+
+networks:
+  demo-net:
+    driver: bridge

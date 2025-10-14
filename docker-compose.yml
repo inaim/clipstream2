@@ -10,12 +10,6 @@ services:
       - ./data/surrealdb:/data
     command: start --log info --user root --pass root file://data/clipstream.db
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
 
   redis:
     image: redis:7-alpine
@@ -68,12 +62,9 @@ services:
       - ./backend:/app
       - ./data/uploads:/app/uploads
     depends_on:
-      surrealdb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      ipfs:
-        condition: service_healthy
+      - surrealdb
+      - redis
+      - ipfs
     restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8001
 

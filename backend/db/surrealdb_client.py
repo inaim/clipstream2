@@ -56,7 +56,8 @@ class SurrealDBClient:
                 "watch_tokens_pending": 0
             })
         )
-        return result[0] if result else None
+        # SurrealDB create returns the created record directly
+        return result if result else None
     
     async def get_user_by_email(self, email: str) -> Optional[Dict]:
         loop = asyncio.get_event_loop()
@@ -117,7 +118,8 @@ class SurrealDBClient:
                 "UPDATE $user SET watch_tokens_pending += $amount",
                 {"user": user_id, "amount": amount}
             )
-            return earning[0]
+            # SurrealDB create returns the created record directly
+            return earning
         
         return await loop.run_in_executor(self.executor, _earn)
     
