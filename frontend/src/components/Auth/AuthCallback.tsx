@@ -34,36 +34,19 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         localStorage.setItem('clipstream_token', token);
         localStorage.setItem('clipstream_user_id', userId);
 
-        // Load user profile
-        const API_BASE = import.meta.env.VITE_BACKEND_URL || 
-                         import.meta.env.VITE_API_BASE_URL || 
-                         'http://localhost:8000';
-
-        const res = await fetch(`${API_BASE}/api/v1/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to load user profile');
-        }
-
-        await res.json(); // Load user data but we don't need to store it
-        
         setStatus('success');
         setMessage(`Successfully signed in with ${provider || 'social account'}!`);
 
-        // Redirect to main app after a short delay
+        // Redirect to dashboard immediately
         setTimeout(() => {
           onSuccess();
-        }, 2000);
+        }, 1000);
 
       } catch (err) {
         console.error('Authentication error:', err);
         setStatus('error');
         setMessage(err instanceof Error ? err.message : 'Authentication failed');
-        
+
         // Redirect to login page after error
         setTimeout(() => {
           onError();

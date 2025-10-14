@@ -1,5 +1,5 @@
 export async function uploadViaBackend(file: File, title: string) {
-  const API_BASE = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') as string;
+  const API_BASE = ((import.meta as any).env.VITE_BACKEND_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8000') as string;
   const token = localStorage.getItem('clipstream_token');
   const fd = new FormData();
   fd.append('file', file);
@@ -26,7 +26,7 @@ export async function uploadViaBackend(file: File, title: string) {
 }
 
 export async function getPlaybackUrl(videoId: number) {
-  const API_BASE = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') as string;
+  const API_BASE = ((import.meta as any).env.VITE_BACKEND_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8000') as string;
   const res = await fetch(`${API_BASE}/api/playback/${videoId}`);
   if (!res.ok) throw new Error('Playback URL fetch failed');
   return (await res.json()).playback_url;

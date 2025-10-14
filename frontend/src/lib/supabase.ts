@@ -5,18 +5,23 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // Otherwise export a lightweight in-memory mock that provides the
 // minimal subset of the Supabase API used by the app. This allows
 // the app to run locally without a Supabase backend for development.
+import backendModule from '../../../src/lib/backendClient';
+
 let supabase: any = null;
 
+// If environment provides real Supabase credentials and you want to use the
+// official client, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY and
+// install @supabase/supabase-js in the frontend. Otherwise the app will
+// use a lightweight in-memory mock or the backend adapter when enabled.
 if (supabaseUrl && supabaseAnonKey) {
 	try {
-		// Lazy-import to avoid bundling supabase in mock mode.
+		// Use a dynamic import to keep bundling conditional.
+		// Note: in the browser environment this will be tree-shaken if unused.
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const { createClient } = require('@supabase/supabase-js');
-		// can't pass a TS generic when using require; rely on inferred any here
 		supabase = createClient(supabaseUrl, supabaseAnonKey);
 	} catch (err) {
-		// If require fails (package not installed), fall back to the mock below.
-		// console.warn('Failed to load @supabase/supabase-js, using mock supabase:', err);
+		// Fall back to mock or backend adapter below.
 	}
 }
 
@@ -123,13 +128,22 @@ if (!supabase) {
 		},
 	};
 
-	supabase = {
-		from: (table: string) => new QueryBuilder(table),
-		storage,
-		auth,
-		// expose db for debugging in dev
-		__mockDb: db,
-	};
+	// If developer prefers to use the demo backend for CRUD instead of Supabase,
+	// enable VITE_USE_BACKEND=true in your .env and set VITE_BACKEND_URL.
+	const useBackend = !!(import.meta as any).env?.VITE_USE_BACKEND;
+
+			if (useBackend) {
+				supabase = backendModule;
+			} else {
+		supabase = {
+			from: (table: string) => new QueryBuilder(table),
+			storage,
+			auth,
+			// expose db for debugging in dev
+			__mockDb: db,
+		};
+	}
+
 }
 
 export { supabase };

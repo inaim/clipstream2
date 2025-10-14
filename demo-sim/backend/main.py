@@ -8,6 +8,7 @@ import os
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from typing import Optional
+import requests
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Header
 
@@ -171,6 +172,15 @@ async def signup(email: str, password: str, display_name: Optional[str] = None):
     finally:
         conn.close()
     token = create_access_token({"sub": str(user_id)})
+    # Mirror to SurrealDB if configured
+    try:
+        SURREAL_URL = os.environ.get('SURREALDB_URL')
+        if SURREAL_URL:
+            # simple insert via SQL HTTP API
+            sql = f"INSERT person CONTENT {{'id': {user_id}, 'email': '{email}', 'display_name': '{display_name or ''}'}}"
+            requests.post(f"{SURREAL_URL}/sql", data=sql)
+    except Exception:
+        pass
     return {"access_token": token, "user_id": user_id}
 
 
@@ -235,6 +245,14 @@ async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled"
             m.write("")
     except Exception:
         pass
+    # Mirror video metadata to SurrealDB
+    try:
+        SURREAL_URL = os.environ.get('SURREALDB_URL')
+        if SURREAL_URL:
+            sql = f"INSERT video CONTENT {{'id': {video_id}, 'owner_id': {owner}, 'title': '{title}', 'filename': '{filename}', 'content_hash': '{content_hash}'}}"
+            requests.post(f"{SURREAL_URL}/sql", data=sql)
+    except Exception:
+        pass
     return {"video_id": video_id, "content_hash": content_hash, "filename": filename}
 
 
@@ -282,6 +300,171 @@ async def get_video(video_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
     return dict(row)
+
+
+@app.get("/api/videos")
+async def list_videos(limit: int = 50, offset: int = 0):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, owner_id, title, filename, content_hash, status, created_at FROM videos ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+    rows = cur.fetchall()
+    videos = []
+    for r in rows:
+        vid = dict(r)
+        # fetch owner profile
+        cur.execute("SELECT id as user_id, email, display_name FROM users WHERE id = ?", (vid['owner_id'],))
+        u = cur.fetchone()
+        profile = { 'user_id': u[0], 'email': u[1], 'display_name': u[2] } if u else None
+        # construct video_url via CDN
+        vid['video_url'] = f"http://localhost:8001/uploads/{vid['filename']}"
+        vid['profiles'] = profile
+        # placeholder counts
+        cur.execute("SELECT COUNT(*) FROM views WHERE video_id = ?", (vid['id'],))
+        vid['views_count'] = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM (SELECT 1 FROM likes WHERE video_id = ?)", (vid['id'],))
+        try:
+            vid['likes_count'] = cur.fetchone()[0]
+        except Exception:
+            vid['likes_count'] = 0
+        videos.append(vid)
+    conn.close()
+    return videos
+
+
+@app.get("/api/likes")
+async def get_like(user_id: Optional[int] = None, video_id: Optional[int] = None):
+    conn = get_db()
+    cur = conn.cursor()
+    query = "SELECT id FROM likes WHERE 1=1"
+    params = []
+    if user_id is not None:
+        query += " AND user_id = ?"
+        params.append(user_id)
+    if video_id is not None:
+        query += " AND video_id = ?"
+        params.append(video_id)
+    cur.execute(query, tuple(params))
+    row = cur.fetchone()
+    conn.close()
+    return { 'data': { 'id': row[0] } if row else None }
+
+
+@app.post("/api/likes")
+async def create_like(user_id: int, video_id: int, current_user: int = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO likes (user_id, video_id) VALUES (?, ?)", (user_id, video_id))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+@app.delete("/api/likes")
+async def delete_like(user_id: int, video_id: int, current_user: int = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM likes WHERE user_id = ? AND video_id = ?", (user_id, video_id))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+@app.get("/api/follows")
+async def get_follow(follower_id: Optional[int] = None, following_id: Optional[int] = None):
+    conn = get_db()
+    cur = conn.cursor()
+    query = "SELECT id FROM follows WHERE 1=1"
+    params = []
+    if follower_id is not None:
+        query += " AND follower_id = ?"
+        params.append(follower_id)
+    if following_id is not None:
+        query += " AND following_id = ?"
+        params.append(following_id)
+    cur.execute(query, tuple(params))
+    row = cur.fetchone()
+    conn.close()
+    return { 'data': { 'id': row[0] } if row else None }
+
+
+@app.post("/api/follows")
+async def create_follow(follower_id: int, following_id: int, current_user: int = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO follows (follower_id, following_id) VALUES (?, ?)", (follower_id, following_id))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+@app.delete("/api/follows")
+async def delete_follow(follower_id: int, following_id: int, current_user: int = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM follows WHERE follower_id = ? AND following_id = ?", (follower_id, following_id))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+@app.get("/api/comments")
+async def list_comments(video_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, video_id, user_id, content, parent_id, created_at FROM comments WHERE video_id = ? ORDER BY created_at ASC", (video_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/comments")
+async def create_comment(video_id: int, user_id: int, content: str, parent_id: Optional[int] = None, current_user: int = Depends(get_current_user)):
+    conn = get_db()
+    cur = conn.cursor()
+    created_at = datetime.utcnow().isoformat()
+    cur.execute("INSERT INTO comments (video_id, user_id, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)", (video_id, user_id, content, parent_id, created_at))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+@app.post("/api/gifts")
+async def send_gift(from_user: int, to_user: int, amount: float, current_user: int = Depends(get_current_user)):
+    # Simple ledger adjustment
+    conn = get_db()
+    cur = conn.cursor()
+    created_at = datetime.utcnow().isoformat()
+    cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)", (to_user, amount, 'gift_received', None, created_at))
+    cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)", (from_user, -amount, 'gift_sent', None, created_at))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok' }
+
+
+
+@app.post("/api/transcode_complete")
+async def transcode_complete(payload: dict):
+    """Called by the transcoder service when a transcode finishes.
+    Expects JSON: { original: '<orig-filename>', transcoded: '<new-filename>' }
+    """
+    orig = payload.get('original')
+    transcoded = payload.get('transcoded')
+    if not orig or not transcoded:
+        raise HTTPException(status_code=400, detail="invalid payload")
+    conn = get_db()
+    cur = conn.cursor()
+    # find video by filename
+    cur.execute("SELECT id FROM videos WHERE filename = ?", (orig,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="video not found")
+    video_id = row[0]
+    # update filename and status
+    cur.execute("UPDATE videos SET filename = ?, status = ? WHERE id = ?", (transcoded, 'ready', video_id))
+    conn.commit()
+    conn.close()
+    return { 'status': 'ok', 'video_id': video_id }
 
 
 # Compatibility endpoint for frontend to fetch profile: /api/v1/users/{user_id}

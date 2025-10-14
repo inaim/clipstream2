@@ -4,9 +4,9 @@ services:
   origin:
     image: nginx:stable
     ports:
-      - "8080:80"
+      - "8082:80"
     volumes:
-      - ./origin:/usr/share/nginx/html:ro
+      - ./origin:/usr/share/nginx/html
       - ./origin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./storage/uploads:/usr/share/nginx/html/uploads
     networks:
@@ -15,7 +15,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8002:8000"
     volumes:
       - ./storage:/app/storage
     networks:
@@ -24,10 +24,21 @@ services:
   cdn:
     build: ./cdn
     ports:
-      - "8001:80"
+      - "8003:80"
     depends_on:
       - origin
       - backend
+      - transcoder
+    networks:
+      - demo-net
+
+  transcoder:
+    build: ./transcoder
+    volumes:
+      - ./storage:/work/storage
+    depends_on:
+      - backend
+      - origin
     networks:
       - demo-net
 

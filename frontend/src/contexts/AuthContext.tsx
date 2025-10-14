@@ -34,12 +34,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = localStorage.getItem('clipstream_token');
     const userId = localStorage.getItem('clipstream_user_id');
     if (token && userId) {
-      // load profile from API
+      // Try to load profile from API, but if it fails, just use the stored userId
       (async () => {
         try {
           await loadProfile(userId, token);
         } catch (err) {
-          console.warn('Failed to load profile from token', err);
+          console.warn('Failed to load profile from API, using stored credentials', err);
+          // Set user with just the userId - profile can be loaded later
+          setUser({ user_id: userId, email: '' });
           setLoading(false);
         }
       })();

@@ -101,17 +101,20 @@ async def phone_verify(request: Request):
     return {"token": app_jwt, "user_id": f"phone:{phone}"}
 
 
+# Initialize OAuth with config
 oauth = OAuth()
 
-# Google
-if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
-    oauth.register(
-        name='google',
-        client_id=settings.GOOGLE_CLIENT_ID,
-        client_secret=settings.GOOGLE_CLIENT_SECRET,
-        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-        client_kwargs={'scope': 'openid email profile'},
-    )
+# Configure OAuth with settings
+oauth.register(
+    name='google',
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile',
+        'prompt': 'select_account'  # Force account selection
+    },
+)
 
 # Facebook
 if settings.FACEBOOK_CLIENT_ID and settings.FACEBOOK_CLIENT_SECRET:
@@ -177,12 +180,20 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
 
     client = oauth.create_client(provider)
     try:
+        # The redirect_uri is automatically extracted from the request session
+        print(f"[OIDC DEBUG] Attempting token exchange for provider={provider}")
+        print(f"[OIDC DEBUG] Session data: {request.session if hasattr(request, 'session') else 'No session'}")
+
+        # Authorize and get token
         token = await client.authorize_access_token(request)
-        try:
-            if getattr(settings, 'DEV_SMS', False):
-                print("Token result:", token)
-        except Exception:
-            pass
+
+        # Debug: log the token response
+        print(f"[OIDC DEBUG] Token response received: {type(token)}")
+        print(f"[OIDC DEBUG] Token keys: {token.keys() if isinstance(token, dict) else 'Not a dict'}")
+        if isinstance(token, dict):
+            # Don't log the actual token values for security
+            print(f"[OIDC DEBUG] Has access_token: {'access_token' in token}")
+            print(f"[OIDC DEBUG] Has id_token: {'id_token' in token}")
 
         # Extract profile info in a provider-aware way
         profile = {}
@@ -190,12 +201,20 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
         provider_email = None
 
         if provider == 'google':
-            userinfo = await client.get('userinfo')
-            profile = userinfo.json()
+            # For Google, we can get user info from the id_token or make an API call
+            # The id_token contains the user info, so let's parse it
+            if 'userinfo' in token:
+                # Some OAuth flows include userinfo directly
+                profile = token['userinfo']
+            else:
+                # Make an authenticated request to get user info
+                # Use the token parameter to pass the access token
+                userinfo = await client.get('https://www.googleapis.com/oauth2/v3/userinfo', token=token)
+                profile = userinfo.json()
             provider_user_id = profile.get('sub') or profile.get('id')
             provider_email = profile.get('email')
         elif provider == 'facebook':
-            userinfo = await client.get('me?fields=id,name,email')
+            userinfo = await client.get('https://graph.facebook.com/me?fields=id,name,email', token=token)
             profile = userinfo.json()
             provider_user_id = profile.get('id')
             provider_email = profile.get('email')
