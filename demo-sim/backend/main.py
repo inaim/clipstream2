@@ -5,6 +5,8 @@ import time
 import asyncio
 import sqlite3
 import os
+import json
+import logging
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from typing import Optional
@@ -12,6 +14,11 @@ import requests
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Header
 import surreal
+
+# Surreal toggles
+SURREAL_AUTHORITATIVE = os.environ.get('SURREAL_AUTHORITATIVE', 'false').lower() in ('1', 'true', 'yes')
+# Optional secret header for transcoder callbacks
+TRANSCODER_SECRET = os.environ.get('TRANSCODER_SECRET')
 
 # Simple config
 SECRET_KEY = os.environ.get("DEMO_SECRET_KEY", "devsecret")
@@ -21,6 +28,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 app = FastAPI()
+
+LOG = logging.getLogger('demo-backend')
+LOG.setLevel(logging.INFO)
 
 # Allow CORS for local frontend dev
 app.add_middleware(
@@ -160,28 +170,45 @@ async def slow_content(response: Response):
 
 @app.post("/api/signup")
 async def signup(email: str, password: str, display_name: Optional[str] = None):
-    conn = get_db()
-    cur = conn.cursor()
+    # When SurrealDB is available, create the user there first (authoritative)
+    user_id = None
     password_hash = get_password_hash(password)
-    try:
-        cur.execute("INSERT INTO users (email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?)",
-                    (email, password_hash, display_name or email.split('@')[0], datetime.utcnow().isoformat()))
-        conn.commit()
-        user_id = cur.lastrowid
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    finally:
+    if surreal.is_available():
+        try:
+            sid = surreal.create_user(email, display_name or '')
+            # If Surreal returned an id, use it; otherwise fall back to sqlite id
+            if sid and sid != -1:
+                # still store auth info locally so demo login works via sqlite
+                conn = get_db()
+                cur = conn.cursor()
+                try:
+                    cur.execute("INSERT OR IGNORE INTO users (id, email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)",
+                                (sid, email, password_hash, display_name or email.split('@')[0], datetime.utcnow().isoformat()))
+                    conn.commit()
+                finally:
+                    conn.close()
+                user_id = sid
+        except Exception:
+            # If authoritative, fail fast
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail="SurrealDB unavailable or write failed")
+            user_id = None
+
+    # Fallback to sqlite if Surreal not available or failed
+    if not user_id:
+        conn = get_db()
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO users (email, password_hash, display_name, created_at) VALUES (?, ?, ?, ?)",
+                        (email, password_hash, display_name or email.split('@')[0], datetime.utcnow().isoformat()))
+            conn.commit()
+            user_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Email already registered")
         conn.close()
+
     token = create_access_token({"sub": str(user_id)})
-    # Mirror to SurrealDB if configured
-    try:
-        SURREAL_URL = os.environ.get('SURREALDB_URL')
-        if SURREAL_URL:
-            # simple insert via SQL HTTP API
-            sql = f"INSERT person CONTENT {{'id': {user_id}, 'email': '{email}', 'display_name': '{display_name or ''}'}}"
-            requests.post(f"{SURREAL_URL}/sql", data=sql)
-    except Exception:
-        pass
     return {"access_token": token, "user_id": user_id}
 
 
@@ -216,9 +243,7 @@ async def login_v1(email: str, password: str):
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled", owner_id: Optional[int] = None, current_user: int = Depends(get_current_user)):
-    # Very small demo upload that saves file locally and registers metadata in sqlite
-    conn = get_db()
-    cur = conn.cursor()
+    # Upload: write file locally (storage) and create video record in SurrealDB first
     timestamp = datetime.utcnow().isoformat()
     filename = f"{int(time.time())}_{file.filename}"
     dest_dir = os.path.join(STORAGE_DIR, "uploads")
@@ -234,11 +259,29 @@ async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled"
     content_hash = h.hexdigest()
     # Use authenticated user if owner_id not provided
     owner = owner_id or current_user
-    cur.execute("INSERT INTO videos (owner_id, title, filename, content_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (owner, title, filename, content_hash, 'hot', timestamp))
-    conn.commit()
-    video_id = cur.lastrowid
-    conn.close()
+
+    video_id = None
+    # If Surreal is available, create video record there (authoritative)
+    if surreal.is_available():
+        try:
+            vid = surreal.create_video(owner, title, filename, content_hash)
+            if vid and vid != -1:
+                video_id = vid
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail="SurrealDB unavailable or write failed")
+            video_id = None
+
+    # Fallback to sqlite
+    if not video_id:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO videos (owner_id, title, filename, content_hash, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (owner, title, filename, content_hash, 'hot', timestamp))
+        conn.commit()
+        video_id = cur.lastrowid
+        conn.close()
+
     # create a todo marker file so the transcoder service can pick it up
     try:
         marker = os.path.join(dest_dir, f"{filename}.todo")
@@ -246,14 +289,7 @@ async def upload(file: UploadFile = File(...), title: Optional[str] = "Untitled"
             m.write("")
     except Exception:
         pass
-    # Mirror video metadata to SurrealDB
-    try:
-        SURREAL_URL = os.environ.get('SURREALDB_URL')
-        if SURREAL_URL:
-            sql = f"INSERT video CONTENT {{'id': {video_id}, 'owner_id': {owner}, 'title': '{title}', 'filename': '{filename}', 'content_hash': '{content_hash}'}}"
-            requests.post(f"{SURREAL_URL}/sql", data=sql)
-    except Exception:
-        pass
+
     return {"video_id": video_id, "content_hash": content_hash, "filename": filename}
 
 
@@ -288,20 +324,33 @@ async def playback_url(video_id: int):
 
 @app.post("/api/views")
 async def record_view(video_id: int, user_id: Optional[int] = None, duration: float = 0.0, current_user: int = Depends(get_current_user)):
-    conn = get_db()
-    cur = conn.cursor()
     counted_at = datetime.utcnow().isoformat()
     # Use authenticated user if user_id not provided
     uid = user_id or current_user
+    amount = 0.001
+    # Try to write view and ledger to Surreal first
+    if surreal.is_available():
+        try:
+            view_payload = { 'video_id': int(video_id), 'user_id': int(uid), 'duration': float(duration), 'counted_at': counted_at }
+            surreal.exec_sql(f"INSERT view CONTENT {json.dumps(view_payload)};")
+            ledger_payload = { 'user_id': int(uid), 'amount': amount, 'reason': 'view_reward', 'reference_id': int(video_id), 'created_at': counted_at }
+            surreal.exec_sql(f"INSERT ledger CONTENT {json.dumps(ledger_payload)};")
+            return { 'status': 'ok', 'credited': amount }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            # fall back to sqlite
+            pass
+
+    conn = get_db()
+    cur = conn.cursor()
     cur.execute("INSERT INTO views (video_id, user_id, duration, counted_at) VALUES (?, ?, ?, ?)",
                 (video_id, uid, duration, counted_at))
-    # Add a ledger entry (very simple): 0.001 token per view
-    amount = 0.001
     cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)",
-                (user_id, amount, 'view_reward', video_id, counted_at))
+                (uid, amount, 'view_reward', video_id, counted_at))
     conn.commit()
     conn.close()
-    return {"status": "ok", "credited": amount}
+    return { 'status': 'ok', 'credited': amount }
 
 
 @app.get("/api/videos/{video_id}")
@@ -382,6 +431,16 @@ async def get_like(user_id: Optional[int] = None, video_id: Optional[int] = None
 
 @app.post("/api/likes")
 async def create_like(user_id: int, video_id: int, current_user: int = Depends(get_current_user)):
+    # Try Surreal first
+    if surreal.is_available():
+        try:
+            payload = { 'user_id': int(user_id), 'video_id': int(video_id) }
+            surreal.exec_sql(f"INSERT likes CONTENT {json.dumps(payload)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
     cur.execute("INSERT INTO likes (user_id, video_id) VALUES (?, ?)", (user_id, video_id))
@@ -392,6 +451,14 @@ async def create_like(user_id: int, video_id: int, current_user: int = Depends(g
 
 @app.delete("/api/likes")
 async def delete_like(user_id: int, video_id: int, current_user: int = Depends(get_current_user)):
+    if surreal.is_available():
+        try:
+            surreal.exec_sql(f"DELETE FROM likes WHERE user_id = {int(user_id)} AND video_id = {int(video_id)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM likes WHERE user_id = ? AND video_id = ?", (user_id, video_id))
@@ -420,6 +487,15 @@ async def get_follow(follower_id: Optional[int] = None, following_id: Optional[i
 
 @app.post("/api/follows")
 async def create_follow(follower_id: int, following_id: int, current_user: int = Depends(get_current_user)):
+    if surreal.is_available():
+        try:
+            payload = { 'follower_id': int(follower_id), 'following_id': int(following_id) }
+            surreal.exec_sql(f"INSERT follows CONTENT {json.dumps(payload)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
     cur.execute("INSERT INTO follows (follower_id, following_id) VALUES (?, ?)", (follower_id, following_id))
@@ -430,6 +506,14 @@ async def create_follow(follower_id: int, following_id: int, current_user: int =
 
 @app.delete("/api/follows")
 async def delete_follow(follower_id: int, following_id: int, current_user: int = Depends(get_current_user)):
+    if surreal.is_available():
+        try:
+            surreal.exec_sql(f"DELETE FROM follows WHERE follower_id = {int(follower_id)} AND following_id = {int(following_id)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM follows WHERE follower_id = ? AND following_id = ?", (follower_id, following_id))
@@ -450,9 +534,18 @@ async def list_comments(video_id: int):
 
 @app.post("/api/comments")
 async def create_comment(video_id: int, user_id: int, content: str, parent_id: Optional[int] = None, current_user: int = Depends(get_current_user)):
+    created_at = datetime.utcnow().isoformat()
+    if surreal.is_available():
+        try:
+            payload = { 'video_id': int(video_id), 'user_id': int(user_id), 'content': content, 'parent_id': parent_id, 'created_at': created_at }
+            surreal.exec_sql(f"INSERT comments CONTENT {json.dumps(payload)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
-    created_at = datetime.utcnow().isoformat()
     cur.execute("INSERT INTO comments (video_id, user_id, content, parent_id, created_at) VALUES (?, ?, ?, ?, ?)", (video_id, user_id, content, parent_id, created_at))
     conn.commit()
     conn.close()
@@ -462,9 +555,20 @@ async def create_comment(video_id: int, user_id: int, content: str, parent_id: O
 @app.post("/api/gifts")
 async def send_gift(from_user: int, to_user: int, amount: float, current_user: int = Depends(get_current_user)):
     # Simple ledger adjustment
+    created_at = datetime.utcnow().isoformat()
+    if surreal.is_available():
+        try:
+            entry_to = { 'user_id': int(to_user), 'amount': float(amount), 'reason': 'gift_received', 'reference_id': None, 'created_at': created_at }
+            entry_from = { 'user_id': int(from_user), 'amount': -float(amount), 'reason': 'gift_sent', 'reference_id': None, 'created_at': created_at }
+            surreal.exec_sql(f"INSERT ledger CONTENT {json.dumps(entry_to)};")
+            surreal.exec_sql(f"INSERT ledger CONTENT {json.dumps(entry_from)};")
+            return { 'status': 'ok' }
+        except Exception:
+            if SURREAL_AUTHORITATIVE:
+                raise HTTPException(status_code=503, detail='SurrealDB unavailable or write failed')
+            pass
     conn = get_db()
     cur = conn.cursor()
-    created_at = datetime.utcnow().isoformat()
     cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)", (to_user, amount, 'gift_received', None, created_at))
     cur.execute("INSERT INTO ledger (user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?)", (from_user, -amount, 'gift_sent', None, created_at))
     conn.commit()
@@ -480,6 +584,10 @@ async def transcode_complete(payload: dict):
     """
     orig = payload.get('original')
     transcoded = payload.get('transcoded')
+    # Validate optional secret header inside payload (transcoder may post it)
+    secret = payload.get('secret')
+    if TRANSCODER_SECRET and secret != TRANSCODER_SECRET:
+        raise HTTPException(status_code=401, detail='invalid transcode secret')
     if not orig or not transcoded:
         raise HTTPException(status_code=400, detail="invalid payload")
     conn = get_db()
@@ -491,7 +599,24 @@ async def transcode_complete(payload: dict):
         conn.close()
         raise HTTPException(status_code=404, detail="video not found")
     video_id = row[0]
-    # update filename and status
+    # When Surreal is authoritative, update it first
+    try:
+        if surreal.is_available():
+            try:
+                surreal.update_video_filename(video_id, transcoded, status='ready')
+            except Exception:
+                if SURREAL_AUTHORITATIVE:
+                    conn.close()
+                    raise HTTPException(status_code=503, detail='SurrealDB unavailable or update failed')
+                # otherwise continue and update sqlite cache
+                pass
+    except Exception:
+        if SURREAL_AUTHORITATIVE:
+            conn.close()
+            raise
+        pass
+
+    # update filename and status in sqlite (local cache)
     cur.execute("UPDATE videos SET filename = ?, status = ? WHERE id = ?", (transcoded, 'ready', video_id))
     conn.commit()
     conn.close()

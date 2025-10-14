@@ -4,7 +4,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from contextlib import asynccontextmanager
 import logging
 from db.surrealdb_client import db_client
-from api import auth, feed, social_auth, users
+from api import auth, feed, social_auth, users, upload
 from utils.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +45,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
 app.include_router(social_auth.router, prefix="/api/v1/auth", tags=["SocialAuth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(upload.router, prefix="/api", tags=["Upload"])
 
 @app.get("/")
 async def root():

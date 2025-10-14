@@ -227,8 +227,12 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
         if not provider_email:
             raise HTTPException(status_code=400, detail="Email not provided by OAuth provider")
 
+        print(f"[OAUTH DEBUG] Looking for user with email: {provider_email}")
+
         # Try to find existing user by email
         user = await db_client.get_user_by_email(provider_email)
+
+        print(f"[OAUTH DEBUG] User found: {user is not None}")
 
         if not user:
             # Create new user with OAuth profile data
@@ -236,16 +240,22 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
             # For OAuth users, we don't have a password, so use a random hash
             import secrets
             random_password_hash = secrets.token_urlsafe(32)
+
+            print(f"[OAUTH DEBUG] Creating new user: email={provider_email}, display_name={display_name}")
             user = await db_client.create_user(provider_email, random_password_hash, display_name)
+            print(f"[OAUTH DEBUG] User created: {user}")
 
             # Give new user welcome bonus
             user_id = str(user['id'])
+            print(f"[OAUTH DEBUG] User ID: {user_id}")
             await db_client.earn_tokens(user_id, 50, "oauth_signup_bonus")
         else:
             user_id = str(user['id'])
+            print(f"[OAUTH DEBUG] Existing user ID: {user_id}")
 
         # Create JWT token with user_id
         app_jwt = create_access_token({"sub": user_id})
+        print(f"[OAUTH DEBUG] JWT created for user_id: {user_id}")
 
         # Build frontend redirect. Use FRONTEND_BASE_URL and our frontend AuthCallback handler
         frontend_callback = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/callback"

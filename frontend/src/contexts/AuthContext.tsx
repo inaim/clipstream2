@@ -25,23 +25,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE = import.meta.env.VITE_BACKEND_URL || 
-                   import.meta.env.VITE_API_BASE_URL || 
-                   'http://localhost:8000';
+  const API_BASE = import.meta.env.VITE_BACKEND_URL ||
+                   import.meta.env.VITE_API_BASE_URL ||
+                   'http://localhost:8001';
 
   useEffect(() => {
     // On mount, check for a stored token and user_id
     const token = localStorage.getItem('clipstream_token');
     const userId = localStorage.getItem('clipstream_user_id');
     if (token && userId) {
-      // Try to load profile from API, but if it fails, just use the stored userId
+      // Load profile from API
       (async () => {
         try {
           await loadProfile(userId, token);
         } catch (err) {
-          console.warn('Failed to load profile from API, using stored credentials', err);
-          // Set user with just the userId - profile can be loaded later
-          setUser({ user_id: userId, email: '' });
+          console.warn('Failed to load profile from token', err);
           setLoading(false);
         }
       })();
