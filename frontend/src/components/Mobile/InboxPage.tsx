@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Send, ArrowLeft, User } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Conversation {

@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Upload, User } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/surrealdb';
 import { useLanguage } from '../../contexts/LanguageContext';
+
+import type { Profile } from '../../lib/types';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -13,9 +15,9 @@ export function EditProfileModal({ onClose, onSuccess }: EditProfileModalProps) 
   const { user, profile } = useAuth();
   const { t } = useLanguage();
   const [displayName, setDisplayName] = useState(profile?.display_name || '');
-  const [bio, setBio] = useState(profile?.bio || '');
+  const [bio, setBio] = useState((profile as Profile | null)?.bio || '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>((profile as Profile | null)?.avatar_url || null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,12 +51,12 @@ export function EditProfileModal({ onClose, onSuccess }: EditProfileModalProps) 
     setError('');
 
     try {
-      let avatarUrl = profile?.avatar_url;
+  let avatarUrl = (profile as Profile | null)?.avatar_url;
 
       if (avatarFile) {
         const fileExt = avatarFile.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+  const filePath = `${(user.id || user.user_id)}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
@@ -94,7 +96,7 @@ export function EditProfileModal({ onClose, onSuccess }: EditProfileModalProps) 
           bio: bio,
           avatar_url: avatarUrl,
         })
-        .eq('id', user.id);
+        .eq('id', user.id || user.user_id);
 
       if (updateError) throw updateError;
 

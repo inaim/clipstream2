@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Gift, Heart, Star, Sparkles, Trophy, Crown } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 

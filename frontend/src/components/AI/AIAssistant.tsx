@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, X, Send, TrendingUp, Users, MapPin, Clock, Video, DollarSign, Rocket, Lightbulb } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 

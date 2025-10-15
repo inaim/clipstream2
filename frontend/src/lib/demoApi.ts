@@ -1,6 +1,6 @@
 // Compatibility wrapper for the frontend build.
-// Re-export the ESM helpers from the repo-level implementation.
-import { uploadViaBackend, getPlaybackUrl } from '../../../src/lib/demoApi';
+// Re-export the API helpers from the services module.
+import { uploadViaBackend, getPlaybackUrl } from '../services/api';
 
 export { uploadViaBackend, getPlaybackUrl };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Send, User, Loader } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { Database } from '../../lib/database.types';

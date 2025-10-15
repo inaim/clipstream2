@@ -38,7 +38,18 @@ from typing import Optional
 import requests
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Header
-import surreal
+from surrealdb import Surreal
+
+# Instantiate SurrealDB client
+surreal = Surreal(os.environ.get("SURREALDB_URL", "ws://localhost:8000/rpc"))
+surreal.signin({
+    "username": os.environ.get("SURREALDB_USER", "root"),
+    "password": os.environ.get("SURREALDB_PASS", "root")
+})
+surreal.use(
+    os.environ.get("SURREALDB_NS", "clipstream"),
+    os.environ.get("SURREALDB_DB", "production")
+)
 
 # Surreal toggles
 SURREAL_AUTHORITATIVE = os.environ.get('SURREAL_AUTHORITATIVE', 'false').lower() in ('1', 'true', 'yes')

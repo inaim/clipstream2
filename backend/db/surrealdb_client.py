@@ -1,26 +1,26 @@
-from surrealdb import Surreal
+from surrealdb import AsyncSurreal
 import logging
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
 class SurrealDBClient:
     def __init__(self):
-        self.db = None
+        self.db: Optional[AsyncSurreal] = None
         self._connected = False
         self.executor = ThreadPoolExecutor(max_workers=4)
     
     async def connect(self):
         if not self._connected:
             try:
-                # Run sync operation in thread pool
+                # Run async operation in thread pool
                 loop = asyncio.get_event_loop()
                 
-                def _connect():
-                    db = Surreal(settings.SURREALDB_URL)
+                def _connect() -> AsyncSurreal:
+                    db = AsyncSurreal(settings.SURREALDB_URL)
                     db.signin({
                         "username": settings.SURREALDB_USER,
                         "password": settings.SURREALDB_PASS

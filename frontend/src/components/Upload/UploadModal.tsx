@@ -2,15 +2,7 @@ import { useState, useRef } from 'react';
 import { X, Upload, Loader } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-
-// Local stub for uploadViaBackend to avoid missing-module compile errors.
-// Replace this with the real implementation that calls your backend.
-async function uploadViaBackend(file: File, title?: string): Promise<{ playback_url: string }> {
-  // Simple fake upload: wait a short time then return a dummy playback URL.
-  return new Promise((resolve) => {
-    setTimeout(() => resolve({ playback_url: 'https://example.com/video.mp4' }), 500);
-  });
-}
+import { uploadViaBackend } from '../../services/api';
 
 interface UploadModalProps {
   onClose: () => void;

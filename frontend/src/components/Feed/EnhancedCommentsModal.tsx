@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Send, User, Heart, MessageCircle, MoreVertical, Trash2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Database } from '../../lib/database.types';
 

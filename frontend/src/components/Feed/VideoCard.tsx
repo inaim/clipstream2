@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Heart, MessageCircle, Share2, User, QrCode } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { QRCodeShare } from '../Share/QRCodeShare';
 import type { Database } from '../../lib/database.types';

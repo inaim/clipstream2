@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { User, Settings, Share2, MoreHorizontal, Grid2x2 as Grid, Heart } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from '../Profile/EditProfileModal';
 import { SettingsPage } from '../Settings/SettingsPage';

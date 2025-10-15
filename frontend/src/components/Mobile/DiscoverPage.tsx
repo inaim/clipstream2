@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Search, TrendingUp, MapPin } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 
 type Video = Database['public']['Tables']['videos']['Row'];

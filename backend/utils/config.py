@@ -1,46 +1,116 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
 from typing import List
 import os
 
-class Settings(BaseSettings):
-    SURREALDB_URL: str = "ws://localhost:8000/rpc"
-    SURREALDB_USER: str = "root"
-    SURREALDB_PASS: str = "root"
-    SURREALDB_NS: str = "clipstream"
-    SURREALDB_DB: str = "production"
-    
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"
-    
-    IPFS_URL: str = "/ip4/127.0.0.1/tcp/5001/http"
-    ENABLE_IPFS: bool = True
-    
-    SECRET_KEY: str = "change-me"
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
-    MAX_UPLOAD_SIZE: int = 524288000
-    UPLOAD_DIR: str = "uploads"
-    
-    ENABLE_AI_PROCESSING: bool = False
-    ENABLE_TOKEN_REWARDS: bool = True
-    EARLY_ADOPTER_MULTIPLIER: int = 5
 
-    # Local/Deployment base URLs used for building redirect URIs
-    BACKEND_BASE_URL: str = os.environ.get('BACKEND_BASE_URL', 'http://localhost:8001')
-    FRONTEND_BASE_URL: str = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:5173')
+class Settings(BaseSettings):
+    # Environment detection
+    ENVIRONMENT: str = Field("production", env="ENVIRONMENT")  # development, staging, production
+    
+    # SurrealDB - Auto-detect based on environment
+    SURREALDB_URL: str = Field(
+        default="ws://localhost:8000/rpc",
+        env="SURREALDB_URL"
+    )
+    SURREALDB_USER: str = Field("root", env="SURREALDB_USER")
+    SURREALDB_PASS: str = Field("root", env="SURREALDB_PASS")
+    SURREALDB_NS: str = Field("clipstream", env="SURREALDB_NS")
+    SURREALDB_DB: str = Field("production", env="SURREALDB_DB")
+
+    # Redis / Celery (optional for Cloud Run)
+    REDIS_URL: str = Field("redis://:6379/0", env="REDIS_URL")
+    CELERY_BROKER_URL: str = Field("redis://localhost:6379/0", env="CELERY_BROKER_URL")
+    CELERY_RESULT_BACKEND: str = Field("redis://localhost:6379/1", env="CELERY_RESULT_BACKEND")
+
+    # IPFS (optional for Cloud Run)
+    IPFS_URL: str = Field("/ip4/127.0.0.1/tcp/5001/http", env="IPFS_URL")
+    ENABLE_IPFS: bool = Field(False, env="ENABLE_IPFS")  # Disabled by default for Cloud Run
+
+    # Auth / JWT
+    SECRET_KEY: str = Field("change-me-in-production", env="SECRET_KEY")
+    JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
+
+    # Frontend / upload
+    ALLOWED_ORIGINS: List[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"],
+        env="ALLOWED_ORIGINS"
+    )
+    MAX_UPLOAD_SIZE: int = Field(524288000, env="MAX_UPLOAD_SIZE")  # 500MB
+    UPLOAD_DIR: str = Field("uploads", env="UPLOAD_DIR")
+
+    # Feature flags
+    ENABLE_AI_PROCESSING: bool = Field(False, env="ENABLE_AI_PROCESSING")
+    ENABLE_TOKEN_REWARDS: bool = Field(True, env="ENABLE_TOKEN_REWARDS")
+    EARLY_ADOPTER_MULTIPLIER: int = Field(5, env="EARLY_ADOPTER_MULTIPLIER")
+
+    # Base URLs - Auto-detect based on environment
+    BACKEND_BASE_URL: str = Field("http://localhost:8080", env="BACKEND_BASE_URL")
+    FRONTEND_BASE_URL: str = Field("http://localhost:5173", env="FRONTEND_BASE_URL")
 
     # Development helpers
-    DEV_SMS: bool = os.environ.get('DEV_SMS', 'false').lower() in ('1', 'true', 'yes')
+    DEV_SMS: bool = Field(False, env="DEV_SMS")
 
-    GOOGLE_CLIENT_ID: str = os.environ.get('GOOGLE_CLIENT_ID', '235194927143-j2i2l1v0uf80rddpsd7qucejn3roo31a.apps.googleusercontent.com')
-    GOOGLE_CLIENT_SECRET: str = os.environ.get('GOOGLE_CLIENT_SECRET', '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')
-    FACEBOOK_CLIENT_ID: str = os.environ.get('FACEBOOK_CLIENT_ID', 'your-facebook-client-id')
-    FACEBOOK_CLIENT_SECRET: str = os.environ.get('FACEBOOK_CLIENT_SECRET', 'your-facebook-client-secret')
+    # OAuth
+    GOOGLE_CLIENT_ID: str = Field("", env="GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = Field("", env="GOOGLE_CLIENT_SECRET")
+    FACEBOOK_CLIENT_ID: str = Field("", env="FACEBOOK_CLIENT_ID")
+    FACEBOOK_CLIENT_SECRET: str = Field("", env="FACEBOOK_CLIENT_SECRET")
     
+    # Cloud Run specific
+    PORT: int = Field(8080, env="PORT")  # Cloud Run sets this automatically
+    
+    # Google Cloud Storage (for Cloud Run file uploads)
+    GCS_BUCKET_NAME: str = Field("", env="GCS_BUCKET_NAME")
+    ENABLE_GCS: bool = Field(False, env="ENABLE_GCS")
+    
+    # Parse ALLOWED_ORIGINS when provided as comma-separated or JSON list
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def _parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return []
+            # Try JSON list first
+            if v.startswith("["):
+                try:
+                    import json
+                    return json.loads(v)
+                except Exception:
+                    pass
+            # Comma-separated
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
+    def is_production(self) -> bool:
+        """Check if running in production"""
+        return self.ENVIRONMENT.lower() == "production"
+    
+    def is_development(self) -> bool:
+        """Check if running in development"""
+        return self.ENVIRONMENT.lower() == "development"
+    
+    def is_cloud_run(self) -> bool:
+        """Detect if running on Google Cloud Run"""
+        return os.getenv("K_SERVICE") is not None
+
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
+
 
 settings = Settings()
+
+# Auto-configure based on environment
+if settings.is_cloud_run():
+    # Running on Cloud Run - adjust settings
+    if not settings.SURREALDB_URL.startswith("wss://"):
+        # Force WSS for production SurrealDB Cloud
+        settings.SURREALDB_URL = os.getenv(
+            "SURREALDB_URL",
+            "wss://ancient-valley-06cu6ilhgptbp4ttr1a04b77oc.aws-euw1.surreal.cloud"
+        )
