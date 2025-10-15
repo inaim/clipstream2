@@ -31,7 +31,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
   const checkLikeStatus = async () => {
     if (!user) return;
 
-    const { data } = await supabase
+    const { data } = await surreal
       .from('likes')
       .select('id')
       .eq('user_id', user.id)
@@ -44,7 +44,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
   const checkFollowStatus = async () => {
     if (!user || user.id === video.user_id) return;
 
-    const { data } = await supabase
+    const { data } = await surreal
       .from('follows')
       .select('id')
       .eq('follower_id', user.id)
@@ -58,7 +58,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
     if (!user) return;
 
     if (isLiked) {
-      await supabase
+      await surreal
         .from('likes')
         .delete()
         .eq('user_id', user.id)
@@ -67,7 +67,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
       setIsLiked(false);
       setLikesCount(prev => prev - 1);
     } else {
-      await supabase
+      await surreal
         .from('likes')
         .insert({ user_id: user.id, video_id: video.id });
 
@@ -80,7 +80,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
     if (!user || user.id === video.user_id) return;
 
     if (isFollowing) {
-      await supabase
+      await surreal
         .from('follows')
         .delete()
         .eq('follower_id', user.id)
@@ -88,7 +88,7 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
 
       setIsFollowing(false);
     } else {
-      await supabase
+      await surreal
         .from('follows')
         .insert({ follower_id: user.id, following_id: video.user_id });
 

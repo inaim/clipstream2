@@ -47,4 +47,6 @@ EXPOSE 8080
 
 # Use exec form and environment variable for port
 # This allows Cloud Run to set the port dynamically
-CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:${PORT}", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "1"]
+# Use shell form so environment variables (like $PORT provided by Cloud Run)
+# are properly expanded at container start time.
+CMD exec gunicorn main:app --bind 0.0.0.0:${PORT} --worker-class uvicorn.workers.UvicornWorker --workers 1

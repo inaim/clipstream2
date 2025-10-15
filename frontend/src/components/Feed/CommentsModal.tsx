@@ -29,7 +29,7 @@ export function CommentsModal({ video, onClose }: CommentsModalProps) {
 
   const loadComments = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await surreal
       .from('comments')
       .select(`
         *,
@@ -50,7 +50,7 @@ export function CommentsModal({ video, onClose }: CommentsModalProps) {
 
     setSubmitting(true);
 
-    const { error } = await supabase.from('comments').insert({
+    const { error } = await surreal.from('comments').insert({
       user_id: user.id,
       video_id: video.id,
       content: newComment.trim(),

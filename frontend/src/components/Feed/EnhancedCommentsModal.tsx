@@ -30,7 +30,7 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
 
   const loadComments = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await surreal
       .from('comments')
       .select(`
         *,
@@ -43,7 +43,7 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
     if (data) {
       const commentsWithReplies = await Promise.all(
         data.map(async (comment) => {
-          const { data: replies } = await supabase
+          const { data: replies } = await surreal
             .from('comments')
             .select(`
               *,
@@ -54,7 +54,7 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
 
           let isLiked = false;
           if (user) {
-            const { data: reaction } = await supabase
+            const { data: reaction } = await surreal
               .from('comment_reactions')
               .select('id')
               .eq('comment_id', comment.id)
@@ -83,7 +83,7 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
     setSubmitting(true);
 
     try {
-      await supabase.from('comments').insert({
+      await surreal.from('comments').insert({
         video_id: video.id,
         user_id: user.id,
         content: newComment,
@@ -108,13 +108,13 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
 
     try {
       if (comment.isLiked) {
-        await supabase
+        await surreal
           .from('comment_reactions')
           .delete()
           .eq('comment_id', commentId)
           .eq('user_id', user.id);
       } else {
-        await supabase
+        await surreal
           .from('comment_reactions')
           .insert({
             comment_id: commentId,
@@ -133,7 +133,7 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
     if (!user) return;
 
     try {
-      await supabase
+      await surreal
         .from('comments')
         .delete()
         .eq('id', commentId)

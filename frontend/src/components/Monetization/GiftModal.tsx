@@ -37,7 +37,7 @@ export function GiftModal({ recipientId, recipientName, videoId, onClose, onSucc
   const loadBalance = async () => {
     if (!user) return;
 
-    const { data } = await supabase
+    const { data } = await surreal
       .from('virtual_currency')
       .select('balance')
       .eq('user_id', user.id)
@@ -58,17 +58,17 @@ export function GiftModal({ recipientId, recipientName, videoId, onClose, onSucc
     setError('');
 
     try {
-      const { error: deductError } = await supabase
+      const { error: deductError } = await surreal
         .from('virtual_currency')
         .update({
           balance: balance - totalCost,
-          lifetime_spent: supabase.rpc('increment_spent', { amount: totalCost }),
+          lifetime_spent: await surreal.rpc('increment_spent', { amount: totalCost }),
         })
         .eq('user_id', user.id);
 
       if (deductError) throw deductError;
 
-      const { error: giftError } = await supabase
+      const { error: giftError } = await surreal
         .from('gifts')
         .insert({
           sender_id: user.id,
@@ -81,16 +81,16 @@ export function GiftModal({ recipientId, recipientName, videoId, onClose, onSucc
 
       if (giftError) throw giftError;
 
-      const { error: creditError } = await supabase
+      const { error: creditError } = await surreal
         .from('virtual_currency')
         .update({
-          balance: supabase.rpc('increment_balance', { amount: Math.floor(totalCost * 0.7) }),
+          balance: await surreal.rpc('increment_balance', { amount: Math.floor(totalCost * 0.7) }),
         })
         .eq('user_id', recipientId);
 
       if (creditError) throw creditError;
 
-      const { error: ledgerError } = await supabase
+      const { error: ledgerError } = await surreal
         .from('creator_partnership_ledger')
         .insert({
           creator_id: recipientId,

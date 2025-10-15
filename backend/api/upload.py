@@ -10,8 +10,24 @@ from utils.auth import get_current_user
 router = APIRouter()
 
 # Upload directory
-UPLOAD_DIR = os.environ.get('UPLOAD_DIR', '/app/uploads')
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Use a writable temp directory by default when running in containers (Cloud Run
+# filesystems are often read-only at the image root). For persistent storage in
+# production use a cloud object store (e.g. Google Cloud Storage) and change the
+# upload flow to stream directly to that service.
+UPLOAD_DIR = os.environ.get('UPLOAD_DIR', '/tmp/uploads')
+try:
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+except OSError as e:
+    # If the configured path is read-only (Errno 30) or otherwise not writable,
+    # fall back to /tmp which is writable on Cloud Run and most containers.
+    try:
+        fallback = '/tmp'
+        os.makedirs(fallback, exist_ok=True)
+        UPLOAD_DIR = fallback
+        print(f"Warning: upload directory not writable, falling back to {fallback}: {e}")
+    except Exception as ex:
+        # If even /tmp is not writable, re-raise with a clearer message.
+        raise RuntimeError(f"No writable upload directory available (tried {UPLOAD_DIR} and /tmp): {ex}")
 
 @router.post('/upload')
 async def upload_video(

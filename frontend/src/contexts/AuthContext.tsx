@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // On mount, check for a stored token and user_id
     (async () => {
       try {
-        const session = await supabase.auth.getSession();
+        const session = await surreal.auth.getSession();
         const userId = (localStorage.getItem('clipstream_user_id') || session?.data?.session?.user?.id) as string | null;
         if (userId) {
           await loadProfile(userId);
@@ -51,15 +51,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, _username: string, _displayName: string) => {
-    // Use supabase wrapper which calls our Surreal-backed register endpoint
-    const { error } = await supabase.auth.signUp({ email, password });
+  // Use surreal auth wrapper which calls our Surreal-backed register endpoint
+  const { error } = await surreal.auth.signUp({ email, password });
     if (error) throw error;
     // Auto-login after register
     await signIn(email, password);
   };
 
   const signIn = async (email: string, password: string) => {
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await surreal.auth.signInWithPassword({ email, password });
     if (error) throw error;
   // supabase wrapper stores token/user_id in localStorage already
   const userId = localStorage.getItem('clipstream_user_id');

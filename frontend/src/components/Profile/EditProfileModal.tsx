@@ -58,18 +58,18 @@ export function EditProfileModal({ onClose, onSuccess }: EditProfileModalProps) 
         const fileName = `${Date.now()}.${fileExt}`;
   const filePath = `${(user.id || user.user_id)}/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await surreal.storage
           .from('avatars')
           .upload(filePath, avatarFile);
 
         if (uploadError) {
           if (uploadError.message.includes('Bucket not found')) {
-            const { error: bucketError } = await supabase.storage.createBucket('avatars', {
+            const { error: bucketError } = await surreal.storage.createBucket('avatars', {
               public: true,
             });
 
             if (!bucketError) {
-              const { error: retryError } = await supabase.storage
+              const { error: retryError } = await surreal.storage
                 .from('avatars')
                 .upload(filePath, avatarFile);
 
@@ -82,14 +82,14 @@ export function EditProfileModal({ onClose, onSuccess }: EditProfileModalProps) 
           }
         }
 
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = surreal.storage
           .from('avatars')
           .getPublicUrl(filePath);
 
         avatarUrl = publicUrl;
       }
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await surreal
         .from('profiles')
         .update({
           display_name: displayName,
