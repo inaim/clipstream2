@@ -135,8 +135,22 @@ if settings.FACEBOOK_CLIENT_ID and settings.FACEBOOK_CLIENT_SECRET:
 async def social_auth_redirect(request: Request, provider: str):
     if provider not in oauth._clients:
         raise HTTPException(status_code=400, detail='Provider not configured')
-    # Use a path-based callback to avoid query-string redirect URI mismatches
-    callback_url = str(request.url_for('social_auth_callback', provider=provider))
+    # Build a callback URL. Prefer an explicit BACKEND_BASE_URL setting (useful
+    # for custom domains). Fallback to X-Forwarded-* headers when present (e.g.
+    # behind Cloud Run/Proxies), and finally fall back to request.url_for.
+    # This ensures the redirect_uri uses https when the incoming request was
+    # originally https but the app sees http because it's behind a proxy.
+    backend_base = getattr(settings, 'BACKEND_BASE_URL', None)
+    if backend_base:
+        callback_url = f"{backend_base.rstrip('/')}/api/v1/auth/social/{provider}/callback"
+    else:
+        proto = request.headers.get('x-forwarded-proto')
+        host = request.headers.get('x-forwarded-host') or request.headers.get('host')
+        if proto and host:
+            callback_url = f"{proto}://{host}/api/v1/auth/social/{provider}/callback"
+        else:
+            # Use FastAPI's url generation as a last resort
+            callback_url = str(request.url_for('social_auth_callback', provider=provider))
     # Debug: log the redirect URI we will request
     try:
         print(f"[OIDC DEBUG] Initiating auth for provider={provider}, callback_url={callback_url}")

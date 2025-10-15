@@ -8,10 +8,19 @@ backend_dir = Path(__file__).resolve().parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 # SessionMiddleware lives in Starlette; import from there to avoid version issues
 from starlette.middleware.sessions import SessionMiddleware
+# Respect X-Forwarded-* headers (scheme, host) when behind proxies / Cloud Run
+try:
+    from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+except Exception:
+    ProxyHeadersMiddleware = None
+    # We can't import ProxyHeadersMiddleware in this environment; at runtime
+    # on the deployed service the package should be available. We'll emit a
+    # warning at startup if it's missing so the operator knows to install
+    # a compatible Starlette/uvicorn version.
 from contextlib import asynccontextmanager
 import logging
 
@@ -19,6 +28,7 @@ from utils.config import settings
 from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
 from api import auth, social_auth, users, upload, feed
+from starlette.responses import RedirectResponse
 
 # Configure logging
 logging.basicConfig(
@@ -83,6 +93,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# When running behind Cloud Run / a proxy, trust X-Forwarded-Proto so
+# request.url_for(...) and other URL generation produce https scheme.
+# Use a permissive trusted_hosts during deployment; tighten this if you
+# want to restrict which proxy hosts are accepted.
+if ProxyHeadersMiddleware is not None:
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+else:
+    logger.warning("ProxyHeadersMiddleware not available; X-Forwarded headers may be ignored")
+
 # Session middleware for OAuth
 app.add_middleware(
     SessionMiddleware,
@@ -114,6 +133,36 @@ app.include_router(social_auth.router, prefix="/api/v1/auth", tags=["Social Auth
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
+
+
+# Compatibility aliases: support legacy endpoints under /api/v1/social/* by
+# redirecting them to the mounted /api/v1/auth/social/* routes. These keep
+# the original query string so OAuth code/state are preserved.
+@app.get("/api/v1/social/{provider}")
+async def social_alias(request: Request, provider: str):
+    qs = request.scope.get("query_string", b"").decode()
+    target = f"/api/v1/auth/social/{provider}"
+    if qs:
+        target = f"{target}?{qs}"
+    return RedirectResponse(target)
+
+
+@app.get("/api/v1/social/{provider}/callback")
+async def social_callback_alias(request: Request, provider: str):
+    qs = request.scope.get("query_string", b"").decode()
+    target = f"/api/v1/auth/social/{provider}/callback"
+    if qs:
+        target = f"{target}?{qs}"
+    return RedirectResponse(target)
+
+
+@app.get("/api/v1/social/callback")
+async def social_callback_query_alias(request: Request):
+    qs = request.scope.get("query_string", b"").decode()
+    target = "/api/v1/auth/social/callback"
+    if qs:
+        target = f"{target}?{qs}"
+    return RedirectResponse(target)
 
 # Health check endpoint
 @app.get("/")
