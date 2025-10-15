@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/surrealdb';
+import { surreal } from '../lib/surrealdb';
 import { profileApi } from '../services/surrealdb';
 
 import type { Profile as ProfileType } from '../lib/types';

@@ -26,7 +26,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 type Row = Record<string, any>;
 
-class QueryBuilder {
+class QueryBuilder implements PromiseLike<any> {
   table: string;
   filters: Record<string, any> = {};
   _selectCols?: string;
@@ -139,11 +139,12 @@ class QueryBuilder {
     return this;
   }
 
-  // Make the QueryBuilder thenable so `await supabase.from(...).select(...).eq(...)` works
-  then<TResult1 = any, TResult2 = any>(onfulfilled?: ((value: any) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): Promise<any> {
+  // Make the QueryBuilder thenable so callers can await the chain: e.g.
+  // await supabase.from('likes').delete().eq('user_id', user.id).eq('video_id', vid)
+  then(onfulfilled?: any, onrejected?: any): Promise<any> {
     const exec = async () => {
       try {
-        // If the caller set an operation flag, handle it first
+        // Handle delete operation if set
         if ((this as any)._operation === 'delete') {
           if (this.table === 'likes' && this.filters.user_id && this.filters.video_id) {
             await socialApi.unlikeVideo(this.filters.user_id, this.filters.video_id);
@@ -154,13 +155,13 @@ class QueryBuilder {
             return { data: { removed: 1 }, error: null };
           }
           if (this.table === 'comments' && this.filters.id) {
-            // delete a comment by id
             await socialApi.deleteComment(this.filters.id);
             return { data: { removed: 1 }, error: null };
           }
           return { data: { removed: 0 }, error: null };
         }
-        // Determine execution based on table and filters
+
+        // Profiles
         if (this.table === 'profiles') {
           if (this.filters.id) {
             const data = await profileApi.getProfile(this.filters.id);
@@ -169,27 +170,35 @@ class QueryBuilder {
           return { data: null, error: null };
         }
 
+        // Videos
         if (this.table === 'videos') {
           if (this.filters.id) {
             const data = await videoApi.getVideo(this.filters.id);
             return { data, error: null };
           }
-          // support listing videos or user's videos
+
           const limit = this._limit ?? 50;
           const offset = this._offset ?? 0;
+
           if (this.filters.owner_id || this.filters.user_id) {
             const owner = this.filters.owner_id || this.filters.user_id;
             const data = await profileApi.getUserVideos(owner, limit, offset);
             const count = Array.isArray(data) ? data.length : 0;
             return { data, count, error: null };
           }
-          const data = await videoApi.listVideos(this._limit ?? 50, this._offset ?? 0);
+
+          // Basic listing/search fallback
+          const data = await videoApi.listVideos(limit, offset);
           const count = Array.isArray(data) ? data.length : 0;
-          return { data, count, error: null };
+          // Respect select count option
+          if (this._selectOptions && this._selectOptions.count === 'exact') {
+            return { data, count, error: null };
+          }
+          return { data, error: null };
         }
 
+        // Likes
         if (this.table === 'likes') {
-          // if both user_id and video_id provided, return checkLike boolean as data
           if (this.filters.user_id && this.filters.video_id) {
             const liked = await socialApi.checkLike(this.filters.user_id, this.filters.video_id);
             return { data: liked ? [{ id: 1 }] : [], count: liked ? 1 : 0, error: null };
@@ -197,6 +206,7 @@ class QueryBuilder {
           return { data: [], count: 0, error: null };
         }
 
+        // Follows
         if (this.table === 'follows') {
           if (this.filters.follower_id && this.filters.following_id) {
             const following = await socialApi.checkFollow(this.filters.follower_id, this.filters.following_id);
@@ -205,6 +215,7 @@ class QueryBuilder {
           return { data: [], count: 0, error: null };
         }
 
+        // Comments
         if (this.table === 'comments') {
           if (this.filters.video_id) {
             const comments = await socialApi.getComments(this.filters.video_id.toString());
@@ -213,14 +224,14 @@ class QueryBuilder {
           return { data: [], count: 0, error: null };
         }
 
-        // Default: return empty
+        // Default
         return { data: null, error: null };
       } catch (err) {
         return Promise.reject(err);
       }
     };
 
-    return exec().then(onfulfilled as any, onrejected as any);
+    return exec().then(onfulfilled, onrejected);
   }
 }
 
@@ -288,7 +299,7 @@ const auth = {
   },
 };
 
-const supabase = {
+const surreal: any = {
   from: (table: string) => new QueryBuilder(table),
   storage,
   auth,
@@ -304,4 +315,4 @@ const supabase = {
   },
 };
 
-export { supabase };
+export { surreal };

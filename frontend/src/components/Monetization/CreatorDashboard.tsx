@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, Users, Video, Gift, Eye, Heart, Shield, Vote, BarChart3, Crown, ThumbsUp, ThumbsDown, Clock } from 'lucide-react';
-import { supabase } from '../../lib/surrealdb';
+import { surreal } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 

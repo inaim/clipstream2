@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Upload, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/surrealdb';
+import { surreal } from '../../lib/surrealdb';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 import type { Profile } from '../../lib/types';

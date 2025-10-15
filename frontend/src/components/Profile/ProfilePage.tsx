@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Video, Heart, Calendar, Settings } from 'lucide-react';
-import { supabase } from '../../lib/surrealdb';
+import { surreal } from '../../lib/surrealdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from './EditProfileModal';
 import { useLanguage } from '../../contexts/LanguageContext';
