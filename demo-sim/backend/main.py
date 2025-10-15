@@ -11,15 +11,15 @@ import hashlib
 import os
 import binascii
 
-# Simple PBKDF2 password hashing (demo only)
 PBKDF2_ITERATIONS = int(os.environ.get('DEMO_PBKDF2_ITERS', '100000'))
+
+app = FastAPI()
 
 def get_password_hash(password: str) -> str:
     """Return a PBKDF2 hashed password in the form iterations$salt$hashhex"""
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, PBKDF2_ITERATIONS)
     return f"{PBKDF2_ITERATIONS}${binascii.hexlify(salt).decode()}${binascii.hexlify(dk).decode()}"
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
@@ -50,9 +50,8 @@ SECRET_KEY = os.environ.get("DEMO_SECRET_KEY", "devsecret")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
-app = FastAPI()
-
-LOG = logging.getLogger('demo-backend')
+# Logger
+LOG = logging.getLogger("demo-backend")
 LOG.setLevel(logging.INFO)
 
 # Allow CORS for local frontend dev
@@ -124,9 +123,6 @@ def init_db():
 init_db()
 
 
-def verify_password(plain_password, hashed_password):
-    # legacy stub removed; use the PBKDF2-based verify_password above
-    raise RuntimeError('legacy verify_password should not be called')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
