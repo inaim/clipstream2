@@ -6,7 +6,6 @@
 import { profileApi, videoApi, socialApi } from '../services/surrealdb';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
-                     import.meta.env.VITE_BACKEND_URL ||
                      'http://localhost:8080';
 
 // auth headers and network helpers live in `src/services/surrealdb.ts` for the explicit API layer

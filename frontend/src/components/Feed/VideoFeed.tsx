@@ -24,9 +24,8 @@ export function VideoFeed() {
 
   const loadVideos = async () => {
     setLoading(true);
-    const API_BASE = import.meta.env.VITE_BACKEND_URL || 
-                     import.meta.env.VITE_API_BASE_URL || 
-                     'http://localhost:8000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 
+           'http://localhost:8000';
     // For mock backend, fetch videos from API directly
     try {
       const res = await fetch(`${API_BASE}/api/v1/feed/for-you?user_id=` + (user?.user_id ?? 'user-a'));

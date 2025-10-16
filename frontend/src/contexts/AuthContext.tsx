@@ -70,12 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithSocial = async (provider: string) => {
     // Redirect to OAuth endpoint - the backend will handle the OAuth flow
-    const redirectUrl = `${(import.meta as any).env.VITE_BACKEND_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001'}/api/v1/auth/social/${provider}`;
+  const redirectUrl = `${(import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001'}/api/v1/auth/social/${provider}`;
     window.location.href = redirectUrl;
   };
 
   const sendPhoneOtp = async (phone: string) => {
-    const apiBase = (import.meta as any).env.VITE_BACKEND_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001';
+  const apiBase = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001';
     const res = await fetch(`${apiBase}/api/v1/auth/phone/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const verifyPhoneOtp = async (phone: string, code: string) => {
-    const apiBase = (import.meta as any).env.VITE_BACKEND_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001';
+  const apiBase = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8001';
     const res = await fetch(`${apiBase}/api/v1/auth/phone/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
