@@ -137,8 +137,8 @@ cd frontend
 npm install
 
 # Build for production
-VITE_API_BASE_URL=https://backend.finailabz.com \
-VITE_BACKEND_URL=https://backend.finailabz.com \
+VITE_API_BASE_URL=https://clipstream-backend.finailabz.com \
+VITE_BACKEND_URL=https://clipstream-backend.finailabz.com \
 npm run build
 ```
 
@@ -260,8 +260,8 @@ ENABLE_IPFS=false
 Set these in `.env.production` or build command:
 
 ```bash
-VITE_API_BASE_URL=https://backend.finailabz.com
-VITE_BACKEND_URL=https://backend.finailabz.com
+VITE_API_BASE_URL=https://clipstream-backend.finailabz.com
+VITE_BACKEND_URL=https://clipstream-backend.finailabz.com
 ```
 
 ---

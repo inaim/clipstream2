@@ -121,8 +121,8 @@ VITE_BACKEND_URL=http://localhost:8080
 Create `frontend/.env.production` with:
 
 ```bash
-VITE_API_BASE_URL=https://backend.finailabz.com
-VITE_BACKEND_URL=https://backend.finailabz.com
+VITE_API_BASE_URL=https://clipstream-backend.finailabz.com
+VITE_BACKEND_URL=https://clipstream-backend.finailabz.com
 ```
 
 ### 2. Install Dependencies

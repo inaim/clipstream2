@@ -101,7 +101,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack
 # Production .env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-production-anon-key
-VITE_BACKEND_URL=https://api.yourdomain.com
+VITE_BACKEND_URL=https://clipstream-backend.finailabz.com
 VITE_IPFS_GATEWAY=https://ipfs.yourdomain.com
 VITE_ENV=production
 ```
