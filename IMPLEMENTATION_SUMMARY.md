@@ -170,7 +170,7 @@
 docker-compose up -d
 
 # Frontend: http://localhost:5173
-# Backend: http://localhost:8001
+# Backend: http://localhost:8080
 # SurrealDB: http://localhost:8000
 ```
 

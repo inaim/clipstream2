@@ -2,7 +2,7 @@
 # Simple cache test script for demo-sim
 # Usage: ./test_cache.sh
 
-CDN=http://localhost:8001
+CDN=http://localhost:8080
 
 echo "First request (expect MISS):"
 curl -i "$CDN/api/slow-content"

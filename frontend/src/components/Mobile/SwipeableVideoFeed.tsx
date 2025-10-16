@@ -55,7 +55,7 @@ export function SwipeableVideoFeed({ feedType }: SwipeableVideoFeedProps) {
     setLoading(true);
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
       let endpoint = '/api/v1/feed/for-you';
 
       if (feedType === 'following') {
@@ -100,7 +100,7 @@ export function SwipeableVideoFeed({ feedType }: SwipeableVideoFeedProps) {
     if (!user || !videos[currentIndex]) return;
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
       await fetch(`${API_BASE}/api/v1/videos/${videos[currentIndex].video_id}/view`, {
         method: 'POST',
         headers: {
@@ -121,7 +121,7 @@ export function SwipeableVideoFeed({ feedType }: SwipeableVideoFeedProps) {
     if (!user || !videos[currentIndex]) return;
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
       const response = await fetch(`${API_BASE}/api/v1/videos/${videos[currentIndex].video_id}/like-status?user_id=${user.user_id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('clipstream_token')}`
@@ -182,7 +182,7 @@ export function SwipeableVideoFeed({ feedType }: SwipeableVideoFeedProps) {
     if (!user || !videos[currentIndex]) return;
 
     try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
       const method = isLiked ? 'DELETE' : 'POST';
       const response = await fetch(`${API_BASE}/api/v1/videos/${videos[currentIndex].video_id}/like`, {
         method,

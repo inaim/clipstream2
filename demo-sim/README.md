@@ -3,8 +3,8 @@ Demo-sim: Simple CDN caching simulation
 This demo contains three services wired with Docker Compose:
 
 - origin: nginx serving a static site (port 8080)
-- backend: FastAPI app providing `/api/content` (port 8000)
-- cdn: nginx reverse proxy + cache in front of origin and backend (port 8001)
+- backend: FastAPI app providing `/api/content` (port 8080)
+- cdn: nginx reverse proxy + cache in front of origin and backend (port 8080)
 
 How to run
 
@@ -16,13 +16,13 @@ docker compose up -d --build
 
 2. Open the CDN endpoint in your browser:
 
-- CDN (simulated): http://localhost:8001
+- CDN (simulated): http://localhost:8080
 - Origin (direct): http://localhost:8080
-- Backend (direct API): http://localhost:8000/api/content
+- Backend (direct API): http://localhost:8080/api/content
 
 What to observe
 
-- Open the browser devtools (Network) and refresh the page served by the CDN at `http://localhost:8001`.
+- Open the browser devtools (Network) and refresh the page served by the CDN at `http://localhost:8080`.
 - The page's JavaScript fetches `/api/content` every 3 seconds. The CDN will add an `X-Cache-Status` header with values like `HIT` or `MISS` depending on caching.
 - Refresh repeatedly and observe that API responses are cached for 10s by default (configured in the CDN). Static assets are cached longer by the origin.
 
@@ -31,13 +31,13 @@ Example curl checks
 - Fetch headers through the CDN (shows X-Cache-Status):
 
 ```bash
-curl -I http://localhost:8001/api/content
+curl -I http://localhost:8080/api/content
 ```
 
 - Fetch directly from backend (bypass CDN):
 
 ```bash
-curl -i http://localhost:8000/api/content
+curl -i http://localhost:8080/api/content
 ```
 
 Notes and next steps
@@ -81,5 +81,5 @@ ffmpeg -i input.mp4 -c:v libaom-av1 -crf 30 -b:v 0 -strict -2 out_av1.mp4
 Frontend wiring
 ---------------
 1. Upload a file to the backend using `POST /api/upload` (multipart form). The response contains `video_id` and `filename`.
-2. Request `GET /api/playback/{video_id}` to receive a `playback_url` which points to `http://localhost:8001/uploads/<filename>` (served by CDN + origin).
+2. Request `GET /api/playback/{video_id}` to receive a `playback_url` which points to `http://localhost:8080/uploads/<filename>` (served by CDN + origin).
 3. Set the player source to that `playback_url`. For HLS we will later generate `index.m3u8` and segments; for now playback uses the uploaded file directly or pre-generated segments.

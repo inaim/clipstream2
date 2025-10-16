@@ -1,11 +1,8 @@
 
-
 services:
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: clipstream-surrealdb
-    ports:
-      - "8000:8000"
     volumes:
       - ./data/surrealdb:/data
     command: start --log info --user root --pass root file://data/clipstream.db
@@ -14,8 +11,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: clipstream-redis
-    ports:
-      - "6379:6379"
     volumes:
       - ./data/redis:/data
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
@@ -29,10 +24,7 @@ services:
   ipfs:
     image: ipfs/kubo:latest
     container_name: clipstream-ipfs
-    ports:
-      - "4001:4001"
-      - "5001:5001"
-      - "8080:8080"
+    ports: []
     volumes:
       - ./data/ipfs:/data/ipfs
     environment:
@@ -48,8 +40,7 @@ services:
   backend:
     build: ./backend
     container_name: clipstream-backend
-    ports:
-      - "8001:8001"
+    ports: []
     env_file:
       - .env
     environment:
@@ -66,7 +57,7 @@ services:
       - redis
       - ipfs
     restart: unless-stopped
-    command: uvicorn main:app --host 0.0.0.0 --port 8001
+    command: uvicorn main:app --host 0.0.0.0 --port 8080
 
   celery-worker:
     build: ./backend
@@ -101,8 +92,6 @@ services:
   flower:
     build: ./backend
     container_name: clipstream-flower
-    ports:
-      - "5555:5555"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
@@ -114,7 +103,3 @@ volumes:
   surrealdb-data:
   redis-data:
   ipfs-data:
-
-networks:
-  default:
-    name: clipstream-network

@@ -231,7 +231,7 @@ cp .env.example .env
 # Edit .env with your configuration
 
 # Start FastAPI server
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+uvicorn main:app --reload --host 0.0.0.0 --port 8080
 
 # In another terminal, start Celery worker
 celery -A workers.video_worker worker --loglevel=info
@@ -263,9 +263,8 @@ yarn dev
 ### **5. Access the Application**
 
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8001
-- **API Docs**: http://localhost:8001/docs
-- **SurrealDB**: http://localhost:8000
+- **Backend API**: http://localhost:8080
+- **API Docs**: http://localhost:8080/docs
 - **Redis**: localhost:6379
 - **IPFS Gateway**: http://localhost:8080
 - **IPFS API**: http://localhost:5001
@@ -281,13 +280,13 @@ yarn dev
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_BACKEND_URL=http://localhost:8001
+VITE_BACKEND_URL=http://localhost:8080
 ```
 
 #### **Backend (.env)**
 ```env
 # Database
-SURREALDB_URL=http://localhost:8000
+SURREALDB_URL=ws://surrealdb:8000/rpc
 SURREALDB_USER=root
 SURREALDB_PASS=root
 SURREALDB_NS=clipstream
@@ -364,7 +363,7 @@ GET /api/v1/feed/for-you?page=1&limit=20
 Authorization: Bearer <token>
 ```
 
-For complete API documentation, visit: http://localhost:8001/docs
+For complete API documentation, visit: http://localhost:8080/docs
 
 ---
 
