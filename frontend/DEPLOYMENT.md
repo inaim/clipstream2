@@ -125,7 +125,7 @@ celery -A celery_app worker --loglevel=info
 ### 1. Test with production URLs locally:
 ```bash
 # Update .env to use production backend
-echo "VITE_API_BASE_URL=https://backend.finailabz.com" > .env
+echo "VITE_API_BASE_URL=https://clipstrem-backend.finailabz.com" > .env
 
 # Build and serve locally
 yarn build
@@ -134,7 +134,7 @@ yarn preview
 
 ### 2. Test backend CORS:
 ```bash
-curl -X OPTIONS https://backend.finailabz.com/api/v1/auth/register \
+curl -X OPTIONS https://clipstream-backend.finailabz.com/api/v1/auth/register \
   -H "Origin: https://clipstream.finailabz.com" \
   -H "Access-Control-Request-Method: POST"
 ```

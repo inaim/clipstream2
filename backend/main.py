@@ -117,7 +117,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS + [
         "https://clipstream.finailabz.com",
-        "https://backend.finailabz.com",
+        "https://clipstream-backend.finailabz.com",
         "http://localhost:5173",
         "http://localhost:3000"
     ],
