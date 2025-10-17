@@ -28,11 +28,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // On mount, check for a stored token and user_id
     (async () => {
       try {
+        // First check localStorage for OAuth token (set by AuthCallback)
+        const storedUserId = localStorage.getItem('clipstream_user_id');
+        const storedToken = localStorage.getItem('clipstream_token');
+        console.log('[AuthContext] Checking localStorage:', { storedUserId, hasToken: !!storedToken });
+
+        if (storedUserId && storedToken) {
+          console.log('[AuthContext] Found stored user_id and token, loading profile:', storedUserId);
+          await loadProfile(storedUserId);
+          return;
+        }
+
+        // Fall back to Surreal session
         const session = await surreal.auth.getSession();
-        const userId = (localStorage.getItem('clipstream_user_id') || session?.data?.session?.user?.id) as string | null;
+        const userId = session?.data?.session?.user?.id as string | null;
         if (userId) {
+          console.log('[AuthContext] Found Surreal session user_id:', userId);
           await loadProfile(userId);
         } else {
+          console.log('[AuthContext] No stored token or session found');
           setLoading(false);
         }
       } catch (err) {

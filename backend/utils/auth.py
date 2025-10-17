@@ -4,8 +4,12 @@ import bcrypt
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from utils.config import settings
+import logging
 
-security = HTTPBearer()
+logger = logging.getLogger(__name__)
+
+# Use auto_error=False so we can return a clearer 401 when credentials are missing
+security = HTTPBearer(auto_error=False)
 
 def hash_password(password: str) -> str:
     """Hash password with bcrypt (max 72 bytes)"""
@@ -49,6 +53,17 @@ def create_access_token(data: dict) -> str:
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Get current user ID from JWT token"""
     try:
+        # If credentials are not provided, HTTPBearer returned None (auto_error=False)
+        if credentials is None:
+            logger.info("Auth: missing credentials (no Authorization header)")
+            raise HTTPException(status_code=401, detail="Missing authorization credentials")
+        # Log masked token length for debugging (do not log token contents)
+        try:
+            token_snippet = f"len={len(credentials.credentials)}"
+        except Exception:
+            token_snippet = "len=unknown"
+        logger.debug(f"Auth: Authorization header present ({token_snippet})")
+
         payload = jwt.decode(
             credentials.credentials,
             settings.SECRET_KEY,

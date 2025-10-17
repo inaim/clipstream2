@@ -1,4 +1,4 @@
-const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8081';
 
 async function handleRes(res: Response) {
   const text = await res.text();
@@ -9,7 +9,8 @@ async function handleRes(res: Response) {
 }
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('clipstream_token')
+  // Prefer 'clipstream_token', but accept 'access_token' for compatibility
+  const token = localStorage.getItem('clipstream_token') || localStorage.getItem('access_token')
   const h: Record<string, string> = {}
   if (token) h['Authorization'] = `Bearer ${token}`
   return h

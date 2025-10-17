@@ -5,7 +5,10 @@ import uuid
 import hashlib
 from datetime import datetime
 from db.surrealdb_client import db_client
+import traceback
 from utils.auth import get_current_user
+from utils.config import settings
+from workers.video_processor import process_video
 
 router = APIRouter()
 
@@ -40,6 +43,24 @@ async def upload_video(
     Returns the video_id and playback_url.
     """
     try:
+        # Debug: log whether Authorization header was present (don't print token)
+        from fastapi import Request
+        # FastAPI will provide the Request via dependency injection only if declared; instead, inspect starlette context via UploadFile.
+        # As a light-weight check, we look at file._headers if available (starlette UploadFile stores headers)
+        try:
+            headers = getattr(file, '_headers', None)
+            auth_present = False
+            if headers:
+                # headers is a list of tuples
+                for k, v in headers:
+                    if k.lower() == 'authorization':
+                        auth_present = True
+                        break
+            print(f"Upload debug: Authorization header present in UploadFile headers: {auth_present}")
+        except Exception:
+            # Non-fatal; move on
+            pass
+
         # Generate unique filename
         timestamp = int(datetime.utcnow().timestamp())
         file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'mp4'
@@ -71,16 +92,32 @@ async def upload_video(
         # Award tokens for upload
         video_id = str(video['id'])
         await db_client.earn_tokens(current_user_id, 10, "video_upload", video_id)
-        
+
+        # Trigger AI processing if enabled
+        if settings.ENABLE_AI_PROCESSING:
+            print(f"[UPLOAD] Triggering AI processing for video {video_id}")
+            try:
+                # Try to use Celery if available, otherwise log for manual processing
+                process_video.delay(video_id)
+                print(f"[UPLOAD] AI processing task queued for {video_id}")
+            except Exception as e:
+                print(f"[UPLOAD] Warning: Celery not available ({e}), AI processing will need to be triggered manually")
+                print(f"[UPLOAD] Video {video_id} ready for AI processing at {file_path}")
+
         return {
             "video_id": video_id,
             "playback_url": cdn_url,
             "title": title,
             "status": "success",
-            "message": "Video uploaded successfully"
+            "message": "Video uploaded successfully",
+            "ai_processing_enabled": settings.ENABLE_AI_PROCESSING
         }
         
     except Exception as e:
-        print(f"Upload error: {e}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        # Print full traceback to help debugging during local development
+        print(f"Upload error: {repr(e)}")
+        traceback.print_exc()
+        # Return error type and message in detail for dev only
+        err_detail = f"{e.__class__.__name__}: {str(e)}"
+        raise HTTPException(status_code=500, detail=f"Upload failed: {err_detail}")
 

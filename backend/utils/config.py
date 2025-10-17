@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
 from typing import List
 import os
 
@@ -13,6 +13,13 @@ def get_env_file():
 
     env = os.getenv("ENVIRONMENT", "development").lower()
     print(f"[CONFIG] Loading environment file: {env_file} (ENVIRONMENT={env})")
+    print(f"[CONFIG] .env file exists: {os.path.exists(env_file)}")
+    if os.path.exists(env_file):
+        with open(env_file, 'r') as f:
+            lines = f.readlines()
+            cors_line = [l for l in lines if 'CORS_ORIGINS' in l]
+            if cors_line:
+                print(f"[CONFIG] CORS_ORIGINS line in .env: {cors_line[0].strip()}")
     return env_file
 
 
@@ -44,11 +51,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
 
-    # Frontend / upload
-    ALLOWED_ORIGINS: List[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:5173"],
-        env="ALLOWED_ORIGINS"
+    # Frontend / upload - CORS origins (read from env as comma-separated string)
+    CORS_ORIGINS_STR: str = Field(
+        default="http://localhost:5175,http://localhost:8081",
+        env="CORS_ORIGINS"
     )
+    ALLOWED_ORIGINS: List[str] = Field(default_factory=list)
     MAX_UPLOAD_SIZE: int = Field(524288000, env="MAX_UPLOAD_SIZE")  # 500MB
     UPLOAD_DIR: str = Field("uploads", env="UPLOAD_DIR")
 
@@ -58,8 +66,8 @@ class Settings(BaseSettings):
     EARLY_ADOPTER_MULTIPLIER: int = Field(5, env="EARLY_ADOPTER_MULTIPLIER")
 
     # Base URLs - Auto-detect based on environment
-    BACKEND_BASE_URL: str = Field("http://localhost:8080", env="BACKEND_BASE_URL")
-    FRONTEND_BASE_URL: str = Field("http://localhost:5173", env="FRONTEND_BASE_URL")
+    BACKEND_BASE_URL: str = Field("http://localhost:8081", env="BACKEND_BASE_URL")
+    FRONTEND_BASE_URL: str = Field("http://localhost:5175", env="FRONTEND_BASE_URL")
 
     # Development helpers
     DEV_SMS: bool = Field(False, env="DEV_SMS")
@@ -77,24 +85,27 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str = Field("", env="GCS_BUCKET_NAME")
     ENABLE_GCS: bool = Field(False, env="ENABLE_GCS")
     
-    # Parse ALLOWED_ORIGINS when provided as comma-separated or JSON list
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def _parse_allowed_origins(cls, v):
-        if isinstance(v, str):
-            v = v.strip()
-            if not v:
-                return []
-            # Try JSON list first
-            if v.startswith("["):
-                try:
+    # Parse CORS_ORIGINS_STR into ALLOWED_ORIGINS after model creation
+    @model_validator(mode="after")
+    def _parse_cors_origins(self):
+        """Parse CORS_ORIGINS_STR from environment variable"""
+        cors_str = self.CORS_ORIGINS_STR
+        if cors_str:
+            try:
+                # Try JSON list first
+                if cors_str.startswith("["):
                     import json
-                    return json.loads(v)
-                except Exception:
-                    pass
-            # Comma-separated
-            return [s.strip() for s in v.split(",") if s.strip()]
-        return v
+                    self.ALLOWED_ORIGINS = json.loads(cors_str)
+                    print(f"[CONFIG] Parsed ALLOWED_ORIGINS from JSON: {self.ALLOWED_ORIGINS}")
+                else:
+                    # Comma-separated
+                    self.ALLOWED_ORIGINS = [s.strip() for s in cors_str.split(",") if s.strip()]
+                    print(f"[CONFIG] Parsed ALLOWED_ORIGINS from comma-separated: {self.ALLOWED_ORIGINS}")
+            except Exception as e:
+                print(f"[CONFIG] Error parsing CORS_ORIGINS: {e}, using defaults")
+        else:
+            print(f"[CONFIG] No CORS_ORIGINS_STR, using defaults: {self.ALLOWED_ORIGINS}")
+        return self
 
     def is_production(self) -> bool:
         """Check if running in production"""
@@ -108,12 +119,13 @@ class Settings(BaseSettings):
         """Detect if running on Google Cloud Run"""
         return os.getenv("K_SERVICE") is not None
 
-    class Config:
-        # Load environment-specific .env file
-        env_file = get_env_file()
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "ignore"  # Ignore extra fields from .env
+    # Use model_config for Pydantic v2
+    model_config = SettingsConfigDict(
+        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 settings = Settings()

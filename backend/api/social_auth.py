@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from starlette.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth, OAuthError
+import httpx
 from utils.config import settings
 from utils.auth import create_access_token
 from db.surrealdb_client import db_client
@@ -115,6 +116,7 @@ oauth.register(
         'scope': 'openid email profile',
         'prompt': 'select_account'  # Force account selection
     },
+    update_token=None,  # Don't try to update token in session
 )
 
 # Facebook
@@ -144,7 +146,14 @@ async def social_auth_redirect(request: Request, provider: str):
 
     client = oauth.create_client(provider)
     # Pass redirect_uri explicitly to override any defaults
-    return await client.authorize_redirect(request, redirect_uri=callback_url)
+    try:
+        return await client.authorize_redirect(request, redirect_uri=callback_url)
+    except httpx.ConnectError:
+        # Network/TLS/connectivity issue when contacting provider metadata
+        raise HTTPException(status_code=503, detail="Cannot reach OAuth provider (network/TLS). Check internet/proxy/SSL configuration.")
+    except Exception as e:
+        # Fallback for any other errors
+        raise HTTPException(status_code=500, detail=f"OAuth redirect failed: {e}")
 
 @router.get('/social/{provider}/callback')
 async def social_auth_callback(request: Request, provider: str, code: Optional[str] = None):
@@ -187,7 +196,28 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
         print(f"[OIDC DEBUG] Session data: {request.session if hasattr(request, 'session') else 'No session'}")
 
         # Authorize and get token
-        token = await client.authorize_access_token(request)
+        try:
+            # For development, we may not have session state due to redirect issues
+            # Try to get token with state validation first
+            try:
+                token = await client.authorize_access_token(request)
+            except Exception as e:
+                # If state validation fails, try without it (for development)
+                if "mismatching_state" in str(e).lower() and settings.ENVIRONMENT == "development":
+                    print(f"[OIDC DEBUG] State validation failed in development, attempting direct token exchange")
+                    # Get the authorization code from query params
+                    code = request.query_params.get('code')
+                    if not code:
+                        raise HTTPException(status_code=400, detail="Missing authorization code")
+                    # Exchange code for token directly
+                    token = await client.fetch_token(request, code=code)
+                else:
+                    raise
+        except httpx.ConnectError:
+            raise HTTPException(status_code=503, detail="Cannot reach OAuth provider (network/TLS) during token exchange. Check internet/proxy/SSL configuration.")
+        except Exception:
+            # re-raise and let outer OAuthError handler capture more details
+            raise
 
         # Debug: log the token response
         print(f"[OIDC DEBUG] Token response received: {type(token)}")

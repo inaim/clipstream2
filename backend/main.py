@@ -27,7 +27,7 @@ import logging
 from utils.config import settings
 from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
-from api import auth, social_auth, users, upload, feed
+from api import auth, social_auth, users, upload, feed, videos
 from starlette.responses import RedirectResponse
 
 # Configure logging
@@ -52,11 +52,24 @@ async def lifespan(app: FastAPI):
         try:
             async_db = AsyncSurreal(settings.SURREALDB_URL)
             await async_db.connect()
-            # Signin with root credentials (system-level user)
-            await async_db.signin({
-                "username": settings.SURREALDB_USER,
-                "password": settings.SURREALDB_PASS,
-            })
+
+            # Different authentication for development vs production
+            if settings.ENVIRONMENT == "production":
+                # Production: Sign in with namespace-level credentials (SurrealDB Cloud)
+                logger.info(f"[SURREALDB] Production mode: Using namespace-level auth for async client")
+                await async_db.signin({
+                    "username": settings.SURREALDB_USER,
+                    "password": settings.SURREALDB_PASS,
+                    "namespace": settings.SURREALDB_NS
+                })
+            else:
+                # Development: Sign in with root-level credentials (local SurrealDB)
+                logger.info(f"[SURREALDB] Development mode: Using root-level auth for async client")
+                await async_db.signin({
+                    "username": settings.SURREALDB_USER,
+                    "password": settings.SURREALDB_PASS,
+                })
+
             await async_db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
             # Attach to db_client for optional async access
             setattr(db_client, "async_db", async_db)
@@ -92,6 +105,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Small, opt-in middleware for debugging incoming Authorization headers.
+# Controlled by environment variable ENABLE_HEADER_DEBUG=1 to avoid leaking
+# tokens or adding noise in production logs.
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class HeaderDebugMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            if os.getenv("ENABLE_HEADER_DEBUG", "0") == "1":
+                auth = request.headers.get("authorization")
+                if auth:
+                    # only log masked length
+                    try:
+                        length = len(auth)
+                    except Exception:
+                        length = -1
+                    logger.info(f"HeaderDebug: Authorization present (len={length})")
+                else:
+                    logger.info("HeaderDebug: Authorization header missing")
+        except Exception as e:
+            logger.warning(f"HeaderDebug middleware failure: {e}")
+        return await call_next(request)
+
+# Add the middleware early so other routers see it
+app.add_middleware(HeaderDebugMiddleware)
+
 # When running behind Cloud Run / a proxy, trust X-Forwarded-Proto so
 # request.url_for(...) and other URL generation produce https scheme.
 # Use a permissive trusted_hosts during deployment; tighten this if you
@@ -126,7 +166,17 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(social_auth.router, prefix="/api/v1/auth", tags=["Social Auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
+app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
+
+# Global exception handler for debugging
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error on {request.method} {request.url.path}: {exc}")
+    return {"detail": str(exc)}
 
 
 # Compatibility aliases: support legacy endpoints under /api/v1/social/* by

@@ -20,4 +20,6 @@ python-dateutil
 pydantic[email]
 itsdangerous
 gunicorn
+
+google-cloud-storage
 uvicorn[standard]

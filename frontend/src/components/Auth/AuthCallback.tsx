@@ -33,6 +33,7 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         // Store the authentication data
         localStorage.setItem('clipstream_token', token);
         localStorage.setItem('clipstream_user_id', userId);
+        console.log('[AuthCallback] Stored token and user_id:', { token: token.substring(0, 20) + '...', userId });
 
         setStatus('success');
         setMessage(`Successfully signed in with ${provider || 'social account'}!`);

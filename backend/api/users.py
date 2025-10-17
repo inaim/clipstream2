@@ -19,6 +19,7 @@ async def get_user_profile(user_id: str):
     Get user profile by user_id.
     This endpoint is public for now - in production you might want to add authentication.
     """
+    print(f"[DEBUG] get_user_profile called with user_id: {user_id}")
     try:
         user = await db_client.get_user_by_id(user_id)
         

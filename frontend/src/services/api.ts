@@ -3,13 +3,14 @@
  * Handles all backend API calls for the frontend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
 
 /**
  * Get authorization header from localStorage
  */
 function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('access_token');
+  // Preferred token key is 'clipstream_token' set by social auth callback; fall back to 'access_token'
+  const token = localStorage.getItem('clipstream_token') || localStorage.getItem('access_token');
   if (token) {
     return { Authorization: `Bearer ${token}` };
   }
@@ -29,6 +30,7 @@ export async function uploadViaBackend(
 
   const response = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
+    // When sending FormData do NOT include Content-Type; browser will set boundary. We still include Authorization header.
     headers: getAuthHeader(),
     body: formData,
   });

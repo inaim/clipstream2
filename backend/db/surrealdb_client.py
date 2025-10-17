@@ -18,11 +18,24 @@ class SurrealDBClient:
             try:
                 self.db = AsyncSurreal(settings.SURREALDB_URL)
                 await self.db.connect()
-                # Sign in with root credentials (system-level user)
-                await self.db.signin({
-                    "username": settings.SURREALDB_USER,
-                    "password": settings.SURREALDB_PASS
-                })
+
+                # Different authentication for development vs production
+                if settings.ENVIRONMENT == "production":
+                    # Production: Sign in with namespace-level credentials (SurrealDB Cloud)
+                    logger.info(f"[SURREALDB] Production mode: Using namespace-level auth")
+                    await self.db.signin({
+                        "username": settings.SURREALDB_USER,
+                        "password": settings.SURREALDB_PASS,
+                        "namespace": settings.SURREALDB_NS
+                    })
+                else:
+                    # Development: Sign in with root-level credentials (local SurrealDB)
+                    logger.info(f"[SURREALDB] Development mode: Using root-level auth")
+                    await self.db.signin({
+                        "username": settings.SURREALDB_USER,
+                        "password": settings.SURREALDB_PASS
+                    })
+
                 # Use the namespace and database
                 await self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
                 self._connected = True
@@ -119,17 +132,59 @@ class SurrealDBClient:
     
     async def create_video(self, user_id: str, title: str, cdn_url: str, **kwargs) -> Dict:
         try:
-            video = await self.db.create("video", {
+            result = await self.db.create("video", {
                 "title": title,
                 "cdn_url": cdn_url,
                 "status": "active",
                 **kwargs
             })
-            await self.db.query(
-                "RELATE $user->created_by->$video",
-                {"user": user_id, "video": video[0]['id']}
-            )
-            return video[0]
+
+            # SurrealDB client may return different shapes depending on version:
+            # - a list where first element is the created record (dict)
+            # - a dict with a 'result' key
+            # - a direct dict representing the created record
+            created = None
+            try:
+                if isinstance(result, list) and len(result) > 0:
+                    item = result[0]
+                    if isinstance(item, dict) and 'result' in item:
+                        created = item['result'][0] if item['result'] else None
+                    elif isinstance(item, dict) and 'id' in item:
+                        created = item
+                    elif isinstance(item, list) and len(item) > 0 and isinstance(item[0], dict):
+                        created = item[0]
+                    else:
+                        created = item
+                elif isinstance(result, dict):
+                    if 'result' in result and isinstance(result['result'], list) and len(result['result'])>0:
+                        created = result['result'][0]
+                    else:
+                        created = result
+                else:
+                    created = None
+            except Exception:
+                created = None
+
+            if not created or not isinstance(created, dict):
+                raise RuntimeError(f"Unexpected create() response from SurrealDB: {result}")
+
+            # Find id in created record (support multiple possible key names)
+            vid = created.get('id') or created.get('ID') or created.get('_id') or created.get('record')
+            if not vid:
+                # If Surreal returned the full thing value, try to extract from 'id' present in nested shapes
+                # Fallback to stringifying the created object to ensure we don't pass None into RELATE.
+                vid = created.get('id') if isinstance(created.get('id'), str) else None
+
+            if vid:
+                try:
+                    await self.db.query(
+                        "RELATE $user->created_by->$video",
+                        {"user": user_id, "video": vid}
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to create relation user->video: {e} (video id={vid})")
+
+            return created
         except Exception as e:
             logger.error(f"Error creating video: {e}")
             raise
@@ -140,7 +195,21 @@ class SurrealDBClient:
                 "SELECT *, <-created_by<-user.* AS creator FROM $video",
                 {"video": video_id}
             )
-            return result[0]['result'][0] if result and result[0]['result'] else None
+            # The AsyncSurreal client may return different shapes. Normalize safely.
+            if not result:
+                return None
+            first = result[0]
+            # If client returns a dict with 'result' key
+            if isinstance(first, dict) and 'result' in first:
+                res_list = first.get('result') or []
+                return res_list[0] if res_list else None
+            # If client returns a list whose first element is a list of records
+            if isinstance(first, list):
+                return first[0] if first else None
+            # Fallback: if it's a dict representing the record
+            if isinstance(first, dict):
+                return first
+            return None
         except Exception as e:
             logger.error(f"Error getting video: {e}")
             return None
@@ -170,9 +239,74 @@ class SurrealDBClient:
                 "SELECT *, <-created_by<-user.* AS creator FROM video WHERE status = 'active' ORDER BY created_at DESC LIMIT $limit",
                 {"limit": limit}
             )
-            return result[0]['result'] if result and result[0]['result'] else []
+            if not result:
+                return []
+            first = result[0]
+            # Handle {'result': [...]}
+            if isinstance(first, dict) and 'result' in first:
+                return first.get('result') or []
+            # Handle [[{...}, {...}]]
+            if isinstance(first, list):
+                return first
+            # If first is a direct record dict, return it wrapped
+            if isinstance(first, dict):
+                return [first]
+            return []
         except Exception as e:
             logger.error(f"Error getting feed: {e}")
+            return []
+
+    async def get_following_feed(self, user_id: str, limit: int = 50) -> List[Dict]:
+        """Get videos from users that the current user follows"""
+        try:
+            result = await self.db.query(
+                """
+                SELECT *, <-created_by<-user.* AS creator FROM video
+                WHERE status = 'active' AND <-created_by<-user.id IN (
+                    SELECT ->follows->user.id FROM $user
+                )
+                ORDER BY created_at DESC LIMIT $limit
+                """,
+                {"user": user_id, "limit": limit}
+            )
+            if not result:
+                return []
+            first = result[0]
+            if isinstance(first, dict) and 'result' in first:
+                return first.get('result') or []
+            if isinstance(first, list):
+                return first
+            if isinstance(first, dict):
+                return [first]
+            return []
+        except Exception as e:
+            logger.error(f"Error getting following feed: {e}")
+            return []
+
+    async def get_trending_feed(self, limit: int = 50) -> List[Dict]:
+        """Get trending videos based on view count and engagement"""
+        try:
+            result = await self.db.query(
+                """
+                SELECT *, <-created_by<-user.* AS creator FROM video
+                WHERE status = 'active'
+                ORDER BY view_count DESC, like_count DESC, created_at DESC
+                LIMIT $limit
+                """,
+                {"limit": limit}
+            )
+            if not result:
+                return []
+            first = result[0]
+            if isinstance(first, dict) and 'result' in first:
+                return first.get('result') or []
+            if isinstance(first, list):
+                return first
+            if isinstance(first, dict):
+                return [first]
+            return []
+        except Exception as e:
+            logger.error(f"Error getting trending feed: {e}")
             return []
 
 db_client = SurrealDBClient()

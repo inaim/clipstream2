@@ -197,10 +197,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'auth.failedToSignIn': 'Failed to sign in',
     'auth.dontHaveAccountSignUp': "Don't have an account? Sign up",
     // Profile content
-    'profile.editProfile': 'Edit Profile',
-    'profile.follow': 'Follow',
-    'profile.following': 'Following',
-    'profile.joinedOn': 'Joined',
+  'profile.editProfile': 'Edit Profile',
+  'profile.follow': 'Follow',
+  'profile.joinedOn': 'Joined',
     // Feed content
     'feed.noVideosYet': 'No videos yet. Be the first to upload!',
     'feed.noCommentsYet': 'No comments yet. Be the first to comment!',
@@ -288,7 +287,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'common.success': 'Éxito',
     'common.chooseLanguage': 'Elige tu idioma preferido',
     // Profile
-    'profile.edit': 'Editar perfil',
+  'profile.edit': 'Editar perfil',
     'profile.displayNamePlaceholder': 'Ingresa tu nombre para mostrar',
     'profile.bioPlaceholder': 'Cuéntanos sobre ti',
     'profile.changeAvatar': 'Cambiar avatar',
@@ -373,10 +372,9 @@ export const translations: Record<Language, Record<string, string>> = {
     'auth.signIn': 'Iniciar sesión',
     'auth.dontHaveAccountSignUp': '¿No tienes una cuenta? Regístrate',
     // Profile content
-    'profile.editProfile': 'Editar Perfil',
-    'profile.follow': 'Seguir',
-    'profile.following': 'Siguiendo',
-    'profile.joinedOn': 'Se unió',
+  'profile.editProfile': 'Editar Perfil',
+  'profile.follow': 'Seguir',
+  'profile.joinedOn': 'Se unió',
     // Feed content
     'feed.noVideosYet': '¡Aún no hay videos. Sé el primero en subir!',
     'feed.noCommentsYet': '¡Aún no hay comentarios. Sé el primero en comentar!',
@@ -445,7 +443,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': 'Supprimer',
     'upload.title': 'Télécharger une vidéo',
     'profile.followers': 'Abonnés',
-    'profile.following': 'Abonnements',
+    
     'profile.likes': "J'aime",
     'nav.home': 'Accueil',
     'nav.upload': 'Télécharger',
@@ -552,7 +550,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': 'Modifier le Profil',
     'profile.follow': 'Suivre',
-    'profile.following': 'Suivi',
+    
     'profile.joinedOn': 'Rejoint',
     // Feed content
     'feed.noVideosYet': 'Pas encore de vidéos. Soyez le premier à télécharger !',
@@ -613,7 +611,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': 'Löschen',
     'upload.title': 'Video hochladen',
     'profile.followers': 'Follower',
-    'profile.following': 'Folge ich',
+    
     'profile.likes': 'Likes',
     'nav.home': 'Startseite',
     'nav.upload': 'Hochladen',
@@ -720,7 +718,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': 'Profil Bearbeiten',
     'profile.follow': 'Folgen',
-    'profile.following': 'Folgt',
+    
     'profile.joinedOn': 'Beigetreten',
     // Feed content
     'feed.noVideosYet': 'Noch keine Videos. Seien Sie der Erste, der hochlädt!',
@@ -781,7 +779,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': '删除',
     'upload.title': '上传视频',
     'profile.followers': '粉丝',
-    'profile.following': '关注',
+    
     'profile.likes': '点赞',
     'nav.home': '首页',
     'nav.upload': '上传',
@@ -901,7 +899,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': '编辑资料',
     'profile.follow': '关注',
-    'profile.following': '已关注',
+    
     'profile.joinedOn': '加入于',
     // Feed content
     'feed.noVideosYet': '还没有视频。成为第一个上传的人！',
@@ -962,7 +960,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': '削除',
     'upload.title': '動画をアップロード',
     'profile.followers': 'フォロワー',
-    'profile.following': 'フォロー中',
+    
     'profile.likes': 'いいね',
     'nav.home': 'ホーム',
     'nav.upload': 'アップロード',
@@ -1082,7 +1080,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': 'プロフィール編集',
     'profile.follow': 'フォロー',
-    'profile.following': 'フォロー中',
+    
     'profile.joinedOn': '参加日',
     // Feed content
     'feed.noVideosYet': 'まだ動画がありません。最初にアップロードしましょう！',
@@ -1143,7 +1141,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': 'حذف',
     'upload.title': 'تحميل فيديو',
     'profile.followers': 'المتابعون',
-    'profile.following': 'المتابَعون',
+    
     'profile.likes': 'الإعجابات',
     'nav.home': 'الرئيسية',
     'nav.upload': 'رفع',
@@ -1263,7 +1261,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': 'تعديل الملف الشخصي',
     'profile.follow': 'متابعة',
-    'profile.following': 'يتابع',
+    
     'profile.joinedOn': 'انضم في',
     // Feed content
     'feed.noVideosYet': 'لا توجد فيديوهات بعد. كن أول من يرفع!',
@@ -1324,7 +1322,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'comments.delete': 'Удалить',
     'upload.title': 'Загрузить видео',
     'profile.followers': 'Подписчики',
-    'profile.following': 'Подписки',
+    
     'profile.likes': 'Лайки',
     'nav.home': 'Главная',
     'nav.upload': 'Загрузить',
@@ -1444,7 +1442,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Profile content
     'profile.editProfile': 'Редактировать Профиль',
     'profile.follow': 'Подписаться',
-    'profile.following': 'Подписки',
+    
     'profile.joinedOn': 'Присоединился',
     // Feed content
     'feed.noVideosYet': 'Пока нет видео. Будьте первым, кто загрузит!',
