@@ -52,11 +52,10 @@ async def lifespan(app: FastAPI):
         try:
             async_db = AsyncSurreal(settings.SURREALDB_URL)
             await async_db.connect()
-            # Signin with minimal payload (username/password/namespace)
+            # Signin with root credentials (system-level user)
             await async_db.signin({
                 "username": settings.SURREALDB_USER,
                 "password": settings.SURREALDB_PASS,
-                "namespace": settings.SURREALDB_NS,
             })
             await async_db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
             # Attach to db_client for optional async access
@@ -190,6 +189,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8080)),
+        port=int(os.getenv("PORT", 8081)),
         reload=True
     )

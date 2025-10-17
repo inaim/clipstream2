@@ -3,9 +3,11 @@ services:
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: clipstream-surrealdb
+    ports:
+      - "8000:8000"
     volumes:
       - ./data/surrealdb:/data
-    command: start --log info --user root --pass root file://data/clipstream.db
+    command: start --log info --username root --password root file:///data/clipstream.db
     restart: unless-stopped
 
   redis:

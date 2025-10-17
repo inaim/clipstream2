@@ -27,8 +27,11 @@ async def register(req: RegisterRequest):
 
     password_hash = hash_password(req.password)
     user = await db_client.create_user(req.email, password_hash, req.display_name)
-
-    # Convert RecordID to string for JSON serialization
+    # SurrealDB create returns a list of records
+    if isinstance(user, list):
+        user = user[0] if user else None
+    if not user or 'id' not in user:
+        raise HTTPException(status_code=500, detail="User creation failed")
     user_id = str(user['id'])
     await db_client.earn_tokens(user_id, 50, "early_adopter_bonus")
 
