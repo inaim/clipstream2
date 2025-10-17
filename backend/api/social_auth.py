@@ -135,22 +135,25 @@ if settings.FACEBOOK_CLIENT_ID and settings.FACEBOOK_CLIENT_SECRET:
 async def social_auth_redirect(request: Request, provider: str):
     if provider not in oauth._clients:
         raise HTTPException(status_code=400, detail='Provider not configured')
-    # Build a callback URL. Prefer an explicit BACKEND_BASE_URL setting (useful
-    # for custom domains). Fallback to X-Forwarded-* headers when present (e.g.
-    # behind Cloud Run/Proxies), and finally fall back to request.url_for.
-    # This ensures the redirect_uri uses https when the incoming request was
-    # originally https but the app sees http because it's behind a proxy.
-    backend_base = getattr(settings, 'BACKEND_BASE_URL', None)
-    if backend_base:
-        callback_url = f"{backend_base.rstrip('/')}/api/v1/auth/social/{provider}/callback"
+    # Build a callback URL. Detect if this is a localhost request and use localhost callback
+    # Otherwise use the BACKEND_BASE_URL setting for production
+    host = request.headers.get('host', '')
+
+    if 'localhost' in host or '127.0.0.1' in host:
+        # Local development - use localhost callback
+        proto = request.headers.get('x-forwarded-proto', 'http')
+        callback_url = f"{proto}://{host}/api/v1/auth/social/{provider}/callback"
+        print(f"[OIDC DEBUG] Local development detected, using localhost callback: {callback_url}")
     else:
-        proto = request.headers.get('x-forwarded-proto')
-        host = request.headers.get('x-forwarded-host') or request.headers.get('host')
-        if proto and host:
-            callback_url = f"{proto}://{host}/api/v1/auth/social/{provider}/callback"
+        # Production - use BACKEND_BASE_URL
+        backend_base = getattr(settings, 'BACKEND_BASE_URL', None)
+        if backend_base:
+            callback_url = f"{backend_base.rstrip('/')}/api/v1/auth/social/{provider}/callback"
         else:
-            # Use FastAPI's url generation as a last resort
-            callback_url = str(request.url_for('social_auth_callback', provider=provider))
+            proto = request.headers.get('x-forwarded-proto', 'https')
+            host_header = request.headers.get('x-forwarded-host') or host
+            callback_url = f"{proto}://{host_header}/api/v1/auth/social/{provider}/callback"
+
     # Debug: log the redirect URI we will request
     try:
         print(f"[OIDC DEBUG] Initiating auth for provider={provider}, callback_url={callback_url}")
@@ -271,8 +274,18 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
         app_jwt = create_access_token({"sub": user_id})
         print(f"[OAUTH DEBUG] JWT created for user_id: {user_id}")
 
-        # Build frontend redirect. Use FRONTEND_BASE_URL and our frontend AuthCallback handler
-        frontend_callback = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/callback"
+        # Build frontend redirect. Detect if this is a localhost request
+        host = request.headers.get('host', '')
+        if 'localhost' in host or '127.0.0.1' in host:
+            # Local development - redirect to localhost frontend
+            proto = request.headers.get('x-forwarded-proto', 'http')
+            frontend_callback = f"{proto}://{host}/auth/callback"
+            print(f"[OAUTH DEBUG] Local development detected, redirecting to localhost frontend: {frontend_callback}")
+        else:
+            # Production - use FRONTEND_BASE_URL
+            frontend_callback = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/callback"
+            print(f"[OAUTH DEBUG] Production detected, redirecting to: {frontend_callback}")
+
         redirect_url = f"{frontend_callback}?token={app_jwt}&user_id={user_id}&provider={provider}"
         return RedirectResponse(redirect_url)
     except OAuthError as e:
