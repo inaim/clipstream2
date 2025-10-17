@@ -74,7 +74,7 @@ class SurrealDBClient:
             logger.info(f"get_user_by_email returning None")
             return None
         except Exception as e:
-            logger.error(f"Error parsing get_user_by_email result: {e}, result type: {type(result)}, result: {result}")
+            logger.error(f"Error parsing get_user_by_email: {e}")
             return None
     
     async def get_user_by_id(self, user_id: str) -> Optional[Dict]:

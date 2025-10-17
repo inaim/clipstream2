@@ -4,6 +4,27 @@ from typing import List
 import os
 
 
+# Determine which .env file to load based on ENVIRONMENT variable
+def get_env_file():
+    """Load the correct .env file based on ENVIRONMENT variable"""
+    env = os.getenv("ENVIRONMENT", "development").lower()
+
+    # Check if environment-specific file exists
+    if env == "production":
+        env_file = ".env.production"
+    elif env == "staging":
+        env_file = ".env.staging"
+    else:
+        env_file = ".env.development"
+
+    # If the specific file doesn't exist, fall back to .env
+    if not os.path.exists(env_file):
+        env_file = ".env"
+
+    print(f"[CONFIG] Loading environment file: {env_file} (ENVIRONMENT={env})")
+    return env_file
+
+
 class Settings(BaseSettings):
     # Environment detection
     ENVIRONMENT: str = Field("production", env="ENVIRONMENT")  # development, staging, production
@@ -97,7 +118,8 @@ class Settings(BaseSettings):
         return os.getenv("K_SERVICE") is not None
 
     class Config:
-        env_file = ".env"
+        # Load environment-specific .env file
+        env_file = get_env_file()
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
