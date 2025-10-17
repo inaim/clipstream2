@@ -4,23 +4,14 @@ from typing import List
 import os
 
 
-# Determine which .env file to load based on ENVIRONMENT variable
+# Determine which .env file to load
 def get_env_file():
-    """Load the correct .env file based on ENVIRONMENT variable"""
+    """Load .env file from backend directory"""
+    # Get the backend directory (where this config.py file is)
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_file = os.path.join(backend_dir, ".env")
+
     env = os.getenv("ENVIRONMENT", "development").lower()
-
-    # Check if environment-specific file exists
-    if env == "production":
-        env_file = ".env.production"
-    elif env == "staging":
-        env_file = ".env.staging"
-    else:
-        env_file = ".env.development"
-
-    # If the specific file doesn't exist, fall back to .env
-    if not os.path.exists(env_file):
-        env_file = ".env"
-
     print(f"[CONFIG] Loading environment file: {env_file} (ENVIRONMENT={env})")
     return env_file
 
@@ -126,6 +117,13 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Debug: Print loaded settings
+print(f"[CONFIG] ENVIRONMENT: {settings.ENVIRONMENT}")
+print(f"[CONFIG] BACKEND_BASE_URL: {settings.BACKEND_BASE_URL}")
+print(f"[CONFIG] FRONTEND_BASE_URL: {settings.FRONTEND_BASE_URL}")
+print(f"[CONFIG] SURREALDB_URL: {settings.SURREALDB_URL}")
+print(f"[CONFIG] SURREALDB_DB: {settings.SURREALDB_DB}")
 
 # Auto-configure based on environment
 if settings.is_cloud_run():
