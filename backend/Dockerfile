@@ -10,11 +10,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install system dependencies including build tools for bcrypt
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates \
-    ffmpeg \  # For video encoding/decoding
-        curl \
-        wget \
-        gcc \
+            ca-certificates \
+            ffmpeg \
+            curl \
+            wget \
+            gcc \
+    # For video encoding/decoding
         g++ \
         make \
         libffi-dev \

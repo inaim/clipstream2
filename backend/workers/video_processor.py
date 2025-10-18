@@ -61,6 +61,7 @@ def upload_to_gcs(local_path, video_id, dest_name):
 
 @celery.task(bind=True, max_retries=2)
 def encode_video(self, video_id: str):
+
     try:
         # Fetch video record from DB to get file path
         video = asyncio.run(db_client.get_video(video_id))
@@ -96,6 +97,9 @@ def encode_video(self, video_id: str):
 
         logger.info(f"[ENCODER] Encoding completed for {video_id}")
         return {"status": "completed", "video_id": video_id, "qualities": ["360p_av1"]}
+    except Exception as exc:
+        logger.error(f"[ENCODER] Error encoding video {video_id}: {exc}")
+        raise self.retry(exc=exc, countdown=120)
 
 
 
@@ -132,3 +136,7 @@ def transcribe_audio(self, video_id: str):
     except Exception as exc:
         logger.error(f"[TRANSCRIBER] Error transcribing video {video_id}: {exc}")
         raise self.retry(exc=exc, countdown=120)
+
+
+# Alias for Celery CLI discovery
+app = celery

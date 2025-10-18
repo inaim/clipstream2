@@ -41,18 +41,35 @@
 
     <title>ClipStream - AI-Driven Video Platform</title>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker Registration (production only) -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered:', registration);
-            })
-            .catch(error => {
-              console.log('SW registration failed:', error);
+      try {
+        const isProd = (import.meta && import.meta.env && import.meta.env.MODE === 'production') || (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
+        if (isProd && 'serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(registration => {
+                console.log('SW registered:', registration);
+              })
+              .catch(error => {
+                console.log('SW registration failed:', error);
+              });
+          });
+        }
+      } catch (e) {
+        // In dev environments import.meta may be undefined inside index.html script execution contexts
+        // Fallback: only register if NODE_ENV === 'production'
+        try {
+          if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('/sw.js')
+                .then(registration => console.log('SW registered:', registration))
+                .catch(err => console.log('SW registration failed:', err));
             });
-        });
+          }
+        } catch (err) {
+          // ignore
+        }
       }
     </script>
   </head>

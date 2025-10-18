@@ -53,7 +53,7 @@ class Settings(BaseSettings):
 
     # Frontend / upload - CORS origins (read from env as comma-separated string)
     CORS_ORIGINS_STR: str = Field(
-        default="http://localhost:5175,http://localhost:8081",
+        default="http://localhost:5173,http://localhost:8081",
         env="CORS_ORIGINS"
     )
     ALLOWED_ORIGINS: List[str] = Field(default_factory=list)
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
 
     # Base URLs - Auto-detect based on environment
     BACKEND_BASE_URL: str = Field("http://localhost:8081", env="BACKEND_BASE_URL")
-    FRONTEND_BASE_URL: str = Field("http://localhost:5175", env="FRONTEND_BASE_URL")
+    FRONTEND_BASE_URL: str = Field("http://localhost:5173", env="FRONTEND_BASE_URL")
 
     # Development helpers
     DEV_SMS: bool = Field(False, env="DEV_SMS")

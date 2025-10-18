@@ -33,6 +33,8 @@ export function AuthCallback({ onSuccess, onError }: AuthCallbackProps) {
         // Store the authentication data
         localStorage.setItem('clipstream_token', token);
         localStorage.setItem('clipstream_user_id', userId);
+  // Mark user as remembered when coming from social auth
+  localStorage.setItem('clipstream_remember', 'true');
         console.log('[AuthCallback] Stored token and user_id:', { token: token.substring(0, 20) + '...', userId });
 
         setStatus('success');

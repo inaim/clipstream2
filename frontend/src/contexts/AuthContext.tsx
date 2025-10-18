@@ -29,8 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         // First check localStorage for OAuth token (set by AuthCallback)
-        const storedUserId = localStorage.getItem('clipstream_user_id');
-        const storedToken = localStorage.getItem('clipstream_token');
+        // Only auto-login if user previously opted to be remembered
+        const remember = localStorage.getItem('clipstream_remember') === 'true';
+        const storedUserId = remember ? localStorage.getItem('clipstream_user_id') : null;
+        const storedToken = remember ? localStorage.getItem('clipstream_token') : null;
         console.log('[AuthContext] Checking localStorage:', { storedUserId, hasToken: !!storedToken });
 
         if (storedUserId && storedToken) {
@@ -68,7 +70,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Use surreal auth wrapper which calls our Surreal-backed register endpoint
   const { error } = await surreal.auth.signUp({ email, password });
     if (error) throw error;
-    // Auto-login after register
+    // Auto-login after register (remember session)
+    localStorage.setItem('clipstream_remember', 'true');
     await signIn(email, password);
   };
 
@@ -78,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // supabase wrapper stores token/user_id in localStorage already
   const userId = localStorage.getItem('clipstream_user_id');
     if (!userId) throw new Error('Missing user id after login');
+    // By default remember signins initiated via form
+    localStorage.setItem('clipstream_remember', 'true');
   await loadProfile(userId);
     setUser({ user_id: userId, email });
   };

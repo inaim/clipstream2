@@ -5,6 +5,7 @@ import httpx
 from utils.config import settings
 from utils.auth import create_access_token
 from db.surrealdb_client import db_client
+import logging
 
 from typing import Optional
 import random
@@ -14,6 +15,8 @@ from fastapi import BackgroundTasks
 import json
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 # Simple in-memory OTP store as fallback. In production use Redis.
 _otp_store = {}
@@ -209,8 +212,43 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
                     code = request.query_params.get('code')
                     if not code:
                         raise HTTPException(status_code=400, detail="Missing authorization code")
-                    # Exchange code for token directly
-                    token = await client.fetch_token(request, code=code)
+                    # Attempt provider-aware token exchange. Some authlib client wrappers
+                    # (StarletteOAuth2App) may not expose `fetch_token`. Handle Google explicitly
+                    # (common in development flows), otherwise try a generic fetch if available.
+                    if hasattr(client, 'fetch_token'):
+                        # Some clients implement fetch_token; call it if present
+                        try:
+                            token = await client.fetch_token(request, code=code)
+                        except TypeError:
+                            # Some implementations expect synchronous args or different signature
+                            token = client.fetch_token(code=code)
+                    else:
+                        # Fallback for Google: call token endpoint directly using async httpx
+                        if provider == 'google':
+                            callback_url = f"{settings.BACKEND_BASE_URL.rstrip('/')}/api/v1/auth/social/{provider}/callback"
+                            token_endpoint = 'https://oauth2.googleapis.com/token'
+                            async with httpx.AsyncClient() as ac:
+                                resp = await ac.post(
+                                    token_endpoint,
+                                    data={
+                                        'code': code,
+                                        'client_id': settings.GOOGLE_CLIENT_ID,
+                                        'client_secret': settings.GOOGLE_CLIENT_SECRET,
+                                        'redirect_uri': callback_url,
+                                        'grant_type': 'authorization_code'
+                                    },
+                                    timeout=10.0,
+                                )
+                                try:
+                                    resp.raise_for_status()
+                                except Exception as httpe:
+                                    raise HTTPException(status_code=502, detail=f"Failed to exchange code with provider: {httpe}")
+                                token = resp.json()
+                        else:
+                            # Unsupported provider for direct code exchange in this fallback
+                            raise HTTPException(status_code=400, detail=(
+                                "State validation failed and automatic token exchange is not supported for this provider in development."
+                            ))
                 else:
                     raise
         except httpx.ConnectError:
@@ -273,8 +311,22 @@ async def social_auth_callback(request: Request, provider: str, code: Optional[s
             random_password_hash = secrets.token_urlsafe(32)
 
             print(f"[OAUTH DEBUG] Creating new user: email={provider_email}, display_name={display_name}")
-            user = await db_client.create_user(provider_email, random_password_hash, display_name)
-            print(f"[OAUTH DEBUG] User created: {user}")
+            try:
+                user = await db_client.create_user(provider_email, random_password_hash, display_name)
+                print(f"[OAUTH DEBUG] User created: {user}")
+            except Exception as e:
+                # SurrealDB client raises generic Exception with dict error from the driver
+                logger.error(f"SurrealDB error during create_user: {e}")
+                # If it's an IAM/permission error surface a clearer HTTP 403
+                msg = str(e)
+                if 'IAM error' in msg or 'Not enough permissions' in msg or 'permission' in msg.lower():
+                    # Provide actionable guidance to operators
+                    raise HTTPException(status_code=403, detail=(
+                        "SurrealDB permission error while creating user. "
+                        "Ensure the Cloud Run environment variable SURREALDB_USER/SURREALDB_PASS corresponds to a namespace-level user with permissions to CREATE/INSERT records, or update the database RBAC to allow this action."
+                    ))
+                # Otherwise re-raise as 500
+                raise HTTPException(status_code=500, detail=f"Failed to create user: {e}")
 
             # Give new user welcome bonus
             user_id = str(user['id'])

@@ -41,7 +41,7 @@ function AppContent() {
           setIsOAuthCallback(false);
           // Clear URL parameters
           window.history.replaceState({}, document.title, window.location.pathname);
-          window.location.reload(); // Force refresh to update auth state
+          // Show main app after successful auth (no reload)
         }}
         onError={() => {
           setIsOAuthCallback(false);
