@@ -23,3 +23,5 @@ gunicorn
 
 google-cloud-storage
 uvicorn[standard]
+strawberry-graphql
+aioredis

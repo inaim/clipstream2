@@ -56,8 +56,12 @@ async def phone_send(request: Request, background_tasks: BackgroundTasks):
     # Prefer Redis if configured (simple sync for now), otherwise in-memory
     try:
         if settings.REDIS_URL:
-            import aioredis
-            redis = aioredis.from_url(settings.REDIS_URL)
+            try:
+                import aioredis as _aioredis
+                redis = _aioredis.from_url(settings.REDIS_URL)
+            except Exception:
+                import redis.asyncio as _rasync
+                redis = _rasync.from_url(settings.REDIS_URL)
             await redis.set(f"otp:{phone}", code, ex=300)
         else:
             _store_otp(phone, code)
@@ -86,10 +90,14 @@ async def phone_verify(request: Request):
     verified = False
     try:
         if settings.REDIS_URL:
-            import aioredis
-            redis = aioredis.from_url(settings.REDIS_URL)
+            try:
+                import aioredis as _aioredis
+                redis = _aioredis.from_url(settings.REDIS_URL)
+            except Exception:
+                import redis.asyncio as _rasync
+                redis = _rasync.from_url(settings.REDIS_URL)
             stored = await redis.get(f"otp:{phone}")
-            if stored and stored.decode() == code:
+            if stored and (stored.decode() if isinstance(stored, (bytes, bytearray)) else stored) == code:
                 verified = True
                 await redis.delete(f"otp:{phone}")
         else:

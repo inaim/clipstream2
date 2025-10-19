@@ -28,6 +28,7 @@ from utils.config import settings
 from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
 from api import auth, social_auth, users, upload, feed, videos
+from api import graphql as graphql_api
 from starlette.responses import RedirectResponse
 
 # Configure logging
@@ -169,6 +170,9 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
 
+# Mount GraphQL endpoint at /graphql for querying videos and feed
+app.mount("/graphql", graphql_api.graphql_app)
+
 # Global exception handler for debugging
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -239,6 +243,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 8081)),
+        port=int(os.getenv("PORT", 8080)),
         reload=True
     )

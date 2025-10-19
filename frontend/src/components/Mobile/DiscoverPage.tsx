@@ -116,7 +116,9 @@ export function DiscoverPage() {
                     {video.title}
                   </p>
                   <p className="text-gray-300 text-xs">
-                    {video.views_count.toLocaleString()} views
+                    {(typeof video.views_count === 'number' && video.views_count !== null)
+                      ? video.views_count.toLocaleString()
+                      : '0'} views
                   </p>
                 </div>
               </div>

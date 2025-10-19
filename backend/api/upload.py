@@ -78,7 +78,10 @@ async def upload_video(
         # Create CDN URL (for now, just a local path - in production this would be a CDN URL)
         cdn_url = f"/uploads/{unique_filename}"
         
-        # Create video record in database
+        # Create video record in database. If AI processing is enabled, mark as
+        # 'processing' so the frontend can show an in-progress state. Otherwise
+        # mark as 'active' immediately.
+        initial_status = 'processing' if settings.ENABLE_AI_PROCESSING else 'active'
         video = await db_client.create_video(
             user_id=current_user_id,
             title=title,
@@ -86,7 +89,7 @@ async def upload_video(
             filename=unique_filename,
             content_hash=content_hash,
             file_size=len(content),
-            status='active'
+            status=initial_status
         )
         
         # Award tokens for upload

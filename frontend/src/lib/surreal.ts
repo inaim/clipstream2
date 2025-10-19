@@ -1,4 +1,4 @@
-const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8081';
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function handleRes(res: Response) {
   const text = await res.text();

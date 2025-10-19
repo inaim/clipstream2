@@ -195,6 +195,12 @@ class SurrealDBClient:
                 "SELECT *, <-created_by<-user.* AS creator FROM $video",
                 {"video": video_id}
             )
+            # Debug: log raw result shape to diagnose worker lookup failures
+            try:
+                logger.debug(f"get_video raw query result for {video_id}: type={type(result)}, value={result}")
+            except Exception:
+                # Never let logging failure break the query flow
+                logger.debug(f"get_video raw query result for {video_id}: (unserializable result)")
             # The AsyncSurreal client may return different shapes. Normalize safely.
             if not result:
                 return None
@@ -202,12 +208,30 @@ class SurrealDBClient:
             # If client returns a dict with 'result' key
             if isinstance(first, dict) and 'result' in first:
                 res_list = first.get('result') or []
-                return res_list[0] if res_list else None
+                record = res_list[0] if res_list else None
+                # Normalize RecordID objects to strings for safe serialization
+                if isinstance(record, dict) and record.get('id') is not None:
+                    try:
+                        record['id'] = str(record['id'])
+                    except Exception:
+                        pass
+                return record
             # If client returns a list whose first element is a list of records
             if isinstance(first, list):
-                return first[0] if first else None
+                record = first[0] if first else None
+                if isinstance(record, dict) and record.get('id') is not None:
+                    try:
+                        record['id'] = str(record['id'])
+                    except Exception:
+                        pass
+                return record
             # Fallback: if it's a dict representing the record
             if isinstance(first, dict):
+                if first.get('id') is not None:
+                    try:
+                        first['id'] = str(first['id'])
+                    except Exception:
+                        pass
                 return first
             return None
         except Exception as e:
@@ -244,12 +268,32 @@ class SurrealDBClient:
             first = result[0]
             # Handle {'result': [...]}
             if isinstance(first, dict) and 'result' in first:
-                return first.get('result') or []
+                res = first.get('result') or []
+                # Normalize ids to strings
+                for r in res:
+                    if isinstance(r, dict) and r.get('id') is not None:
+                        try:
+                            r['id'] = str(r['id'])
+                        except Exception:
+                            pass
+                return res
             # Handle [[{...}, {...}]]
             if isinstance(first, list):
+                # Normalize list of records
+                for r in first:
+                    if isinstance(r, dict) and r.get('id') is not None:
+                        try:
+                            r['id'] = str(r['id'])
+                        except Exception:
+                            pass
                 return first
             # If first is a direct record dict, return it wrapped
             if isinstance(first, dict):
+                if first.get('id') is not None:
+                    try:
+                        first['id'] = str(first['id'])
+                    except Exception:
+                        pass
                 return [first]
             return []
         except Exception as e:

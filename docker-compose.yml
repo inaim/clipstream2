@@ -43,8 +43,6 @@ services:
     build: ./backend
     container_name: clipstream-backend
     ports: []
-    env_file:
-      - .env
     environment:
       - SURREALDB_URL=ws://surrealdb:8000/rpc
       - REDIS_URL=redis://redis:6379/0
