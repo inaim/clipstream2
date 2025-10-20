@@ -437,11 +437,15 @@ class SurrealDBClient:
     
     async def get_for_you_feed(self, limit: int = 50) -> List[Dict]:
         try:
+            # Include in-progress uploads (queued/processing) so users see their
+            # newly uploaded videos immediately. In production you may want to
+            # restrict this to uploader-only or hide unfinished uploads.
             result = await self.db.query(
-                "SELECT *, <-created_by<-user.* AS creator FROM video WHERE status = 'active' ORDER BY created_at DESC LIMIT $limit",
+                "SELECT *, <-created_by<-user.* AS creator FROM video WHERE status = 'active' OR status = 'processing' OR status = 'queued' ORDER BY created_at DESC LIMIT $limit",
                 {"limit": limit}
             )
             if not result:
+                logger.info(f"get_for_you_feed: raw result empty for limit={limit}")
                 return []
             first = result[0]
             # Handle {'result': [...]}
@@ -454,6 +458,7 @@ class SurrealDBClient:
                             r['id'] = str(r['id'])
                         except Exception:
                             pass
+                logger.info(f"get_for_you_feed: returning {len(res)} records (dict->result)")
                 return res
             # Handle [[{...}, {...}]]
             if isinstance(first, list):
@@ -464,6 +469,7 @@ class SurrealDBClient:
                             r['id'] = str(r['id'])
                         except Exception:
                             pass
+                logger.info(f"get_for_you_feed: returning {len(first)} records (list)")
                 return first
             # If first is a direct record dict, return it wrapped
             if isinstance(first, dict):
@@ -472,6 +478,7 @@ class SurrealDBClient:
                         first['id'] = str(first['id'])
                     except Exception:
                         pass
+                logger.info("get_for_you_feed: returning 1 record (single dict)")
                 return [first]
             return []
         except Exception as e:

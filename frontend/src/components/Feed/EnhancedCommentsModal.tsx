@@ -14,9 +14,10 @@ type Comment = Database['public']['Tables']['comments']['Row'] & {
 interface EnhancedCommentsModalProps {
   video: Video;
   onClose: () => void;
+  asPanel?: boolean;
 }
 
-export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalProps) {
+export function EnhancedCommentsModal({ video, onClose, asPanel }: EnhancedCommentsModalProps) {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -24,50 +25,97 @@ export function EnhancedCommentsModal({ video, onClose }: EnhancedCommentsModalP
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    loadComments();
-  }, [video.id]);
-
-  const loadComments = async () => {
-    setLoading(true);
-    const { data } = await surreal
-      .from('comments')
-      .select(`
-        *,
-        profiles (*)
-      `)
-      .eq('video_id', video.id)
-      .is('parent_comment_id', null)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      const commentsWithReplies = await Promise.all(
-        data.map(async (comment) => {
-          const { data: replies } = await surreal
-            .from('comments')
-            .select(`
-              *,
-              profiles (*)
-            `)
-            .eq('parent_comment_id', comment.id)
-            .order('created_at', { ascending: true });
-
-          let isLiked = false;
-          if (user) {
-            const { data: reaction } = await surreal
-              .from('comment_reactions')
-              .select('id')
-              .eq('comment_id', comment.id)
-              .eq('user_id', user.id)
-              .maybeSingle();
-            isLiked = !!reaction;
-          }
-
-          return {
-            ...comment,
-            replies: replies as Comment[] || [],
-            isLiked,
-          };
+  if (asPanel) {
+    // Desktop: slide-in panel from right
+    return (
+      <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
+        <div className="bg-white shadow-2xl h-full w-[340px] max-w-[30vw] flex flex-col pointer-events-auto animate-slidein">
+          <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">
+              {video.comments_count || 0} Comments
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-blue"></div>
+              </div>
+            ) : comments.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No comments yet. Be the first to comment!</p>
+              </div>
+            ) : (
+              comments.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  onReply={(id) => setReplyingTo(id)}
+                  onLike={handleLikeComment}
+                  onDelete={handleDeleteComment}
+                  currentUserId={user?.id || ''}
+                  isReply={false}
+                />
+              ))
+            )}
+          </div>
+          {/* ...existing code for new comment input... */}
+        </div>
+        {/* Overlay for click-outside-to-close */}
+        <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+        <style>{`.animate-slidein{animation:slidein .3s cubic-bezier(.4,0,.2,1)}@keyframes slidein{from{transform:translateX(100%);}to{transform:translateX(0);}}`}</style>
+      </div>
+    );
+  }
+  // Mobile: modal
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-end md:items-center md:justify-center z-50">
+      <div className="bg-white w-full md:max-w-2xl md:rounded-2xl rounded-t-3xl max-h-[85vh] flex flex-col">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between rounded-t-3xl md:rounded-t-2xl">
+          <h2 className="text-xl font-bold text-gray-900">
+            {video.comments_count || 0} Comments
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-blue"></div>
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No comments yet. Be the first to comment!</p>
+            </div>
+          ) : (
+            comments.map((comment) => (
+              <CommentItem
+                key={comment.id}
+                comment={comment}
+                onReply={(id) => setReplyingTo(id)}
+                onLike={handleLikeComment}
+                onDelete={handleDeleteComment}
+                currentUserId={user?.id || ''}
+                isReply={false}
+              />
+            ))
+          )}
+        </div>
+        {/* ...existing code for new comment input... */}
+      </div>
+    </div>
+  );
         })
       );
 

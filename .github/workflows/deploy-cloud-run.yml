@@ -1,0 +1,138 @@
+name: Deploy to Cloud Run (with preflight validations)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (production|staging|development)'
+        required: true
+        default: 'production'
+      region:
+        description: 'GCP region for Cloud Run'
+        required: true
+        default: 'europe-west1'
+      service:
+        description: 'Cloud Run service name'
+        required: true
+        default: 'clipstream-backend'
+      image_name:
+        description: 'Container image name (optional)'
+        required: false
+        default: ''
+      enable_gcs:
+        description: 'Whether GCS is enabled for the deployment (true/false)'
+        required: false
+        default: 'false'
+      gcs_bucket_name:
+        description: 'GCS bucket name (required if enable_gcs=true)'
+        required: false
+        default: ''
+      cors_origins:
+        description: 'Comma-separated CORS origins (required in production)'
+        required: false
+        default: ''
+      cors_allow_credentials:
+        description: 'Whether to allow CORS credentials (true/false)'
+        required: false
+        default: 'true'
+
+env:
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+jobs:
+  validate:
+    name: Pre-deploy validations
+    runs-on: ubuntu-latest
+    outputs:
+      validated: ${{ steps.validate.outputs.validated }}
+    steps:
+      - name: Validate inputs
+        id: validate
+        run: |
+          set -euo pipefail
+          echo "Validating deploy inputs..."
+          ENV=${{ github.event.inputs.environment || github.event.inputs.environment }}
+          ENABLE_GCS='${{ github.event.inputs.enable_gcs }}'
+          GCS_BUCKET='${{ github.event.inputs.gcs_bucket_name }}'
+          CORS_ORIGINS='${{ github.event.inputs.cors_origins }}'
+          CORS_ALLOW_CREDENTIALS='${{ github.event.inputs.cors_allow_credentials }}'
+
+          # Normalize booleans
+          ENABLE_GCS_LOWER=$(echo "$ENABLE_GCS" | tr '[:upper:]' '[:lower:]')
+          CORS_ALLOW_CREDENTIALS_LOWER=$(echo "$CORS_ALLOW_CREDENTIALS" | tr '[:upper:]' '[:lower:]')
+
+          if [[ "$ENABLE_GCS_LOWER" == "true" ]] && [[ -z "$GCS_BUCKET" ]]; then
+            echo "ERROR: ENABLE_GCS is true but gcs_bucket_name was not provided. Aborting." >&2
+            exit 1
+          fi
+
+          if [[ "$ENV" == "production" ]]; then
+            if [[ -z "$CORS_ORIGINS" ]]; then
+              echo "ERROR: Deploying to production requires cors_origins to be set. Aborting." >&2
+              exit 1
+            fi
+            if [[ "$CORS_ALLOW_CREDENTIALS_LOWER" == "true" ]] && [[ "$CORS_ORIGINS" == "*" ]]; then
+              echo "ERROR: cors_allow_credentials=true is incompatible with '*' origin. Use explicit origins. Aborting." >&2
+              exit 1
+            fi
+          fi
+
+          echo "validated=true" | tee /github/workflow/output
+          echo "::set-output name=validated::true"
+
+  deploy:
+    name: Build & Deploy to Cloud Run
+    needs: validate
+    runs-on: ubuntu-latest
+    if: needs.validate.outputs.validated == 'true'
+    env:
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      GCP_REGION: ${{ github.event.inputs.region || 'europe-west1' }}
+      SERVICE_NAME: ${{ github.event.inputs.service || 'clipstream-backend' }}
+      IMAGE_NAME: ${{ github.event.inputs.image_name }}
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+      CORS_ORIGINS: ${{ github.event.inputs.cors_origins }}
+      CORS_ALLOW_CREDENTIALS: ${{ github.event.inputs.cors_allow_credentials }}
+      ENABLE_GCS: ${{ github.event.inputs.enable_gcs }}
+      GCS_BUCKET_NAME: ${{ github.event.inputs.gcs_bucket_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT }}
+          export_default_credentials: true
+
+      - name: Build container image (Cloud Build)
+        run: |
+          IMAGE=${{ env.IMAGE_NAME }}
+          if [[ -z "$IMAGE" ]]; then
+            IMAGE=gcr.io/${{ env.GCP_PROJECT }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          fi
+          echo "Building image: $IMAGE"
+          gcloud builds submit --tag "$IMAGE"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE=${{ env.IMAGE_NAME }}
+          if [[ -z "$IMAGE" ]]; then
+            IMAGE=gcr.io/${{ env.GCP_PROJECT }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          fi
+          echo "Deploying $IMAGE to Cloud Run service ${{ env.SERVICE_NAME }} in region ${{ env.GCP_REGION }}"
+          gcloud run deploy "${{ env.SERVICE_NAME }}" \
+            --image "$IMAGE" \
+            --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=${{ env.ENVIRONMENT }},CORS_ORIGINS=${{ env.CORS_ORIGINS }},CORS_ALLOW_CREDENTIALS=${{ env.CORS_ALLOW_CREDENTIALS }},ENABLE_GCS=${{ env.ENABLE_GCS }},GCS_BUCKET_NAME=${{ env.GCS_BUCKET_NAME }}"

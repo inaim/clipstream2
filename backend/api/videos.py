@@ -64,6 +64,20 @@ async def list_videos(limit: int = 50, offset: int = 0):
     return videos or []
 
 
+@router.get('/videos/events/global')
+async def videos_global_events(request: Request):
+    """SSE endpoint for global video events (new uploads, global updates)."""
+    channel = "videos:events"
+
+    async def event_stream():
+        async for chunk in _sse_event_generator(channel):
+            if await request.is_disconnected():
+                break
+            yield chunk
+
+    return StreamingResponse(event_stream(), media_type='text/event-stream')
+
+
 @router.get('/videos/{video_id}')
 async def get_video(video_id: str):
     video = await db_client.get_video(video_id)

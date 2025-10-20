@@ -107,17 +107,41 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg overflow-hidden max-w-lg w-full">
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[420px] md:max-w-[520px] lg:max-w-[600px] mx-auto">
       <div className="aspect-[9/16] bg-black relative">
+        {/* status badge */}
+        {((video as any).status || (video as any).processing_steps) && (
+          <div className="absolute top-3 left-3 z-10">
+            <span className={`px-2 py-1 text-xs font-semibold rounded-full text-white ${((video as any).status === 'queued' && 'bg-yellow-600') || ((video as any).status === 'processing' && 'bg-orange-600') || ((video as any).status === 'failed' && 'bg-red-600') || 'bg-green-600'}`}>
+              {((video as any).status && ((video as any).status).toString().toUpperCase()) || 'PROCESSING'}
+            </span>
+          </div>
+        )}
         <video
           src={video.video_url}
           className="w-full h-full object-contain"
           controls
           playsInline
         />
+        {/* processing overlay for queued/processing videos */}
+        {((video as any).status === 'queued' || (video as any).status === 'processing') && (video as any).processing_steps && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+            <div className="bg-white/90 rounded-lg p-4 max-w-sm w-full text-center">
+              <h4 className="font-semibold mb-2">Processing</h4>
+              <div className="text-sm text-gray-700">
+                {Object.entries((video as any).processing_steps).map(([k, v]: any) => (
+                  <div key={k} className="flex justify-between py-1">
+                    <span className="capitalize">{k.replace(/_/g, ' ')}</span>
+                    <span className="font-mono text-xs text-gray-600">{v?.status || ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="p-4 space-y-4">
+  <div className="p-3 sm:p-4 space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
@@ -160,40 +184,34 @@ export function VideoCard({ video, onCommentClick }: VideoCardProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100 text-2xl">
           <button
             onClick={toggleLike}
-            className="flex items-center gap-2 hover:text-red-600 transition group"
+            className="hover:text-red-600 transition"
+            title="Like"
           >
-            <Heart
-              className={`w-6 h-6 ${
-                isLiked ? 'fill-red-600 text-red-600' : 'text-gray-700 group-hover:text-red-600'
-              }`}
-            />
-            <span className="font-semibold text-gray-900">{likesCount}</span>
+            {isLiked ? '❤️' : '🤍'} <span className="text-base align-middle ml-1">{likesCount}</span>
           </button>
-
           <button
             onClick={onCommentClick}
-            className="flex items-center gap-2 hover:text-blue-600 transition group"
+            className="hover:text-blue-600 transition"
+            title="Comment"
           >
-            <MessageCircle className="w-6 h-6 text-gray-700 group-hover:text-blue-600" />
-            <span className="font-semibold text-gray-900">{video.comments_count}</span>
+            💬 <span className="text-base align-middle ml-1">{video.comments_count}</span>
           </button>
-
           <button
             onClick={handleShare}
-            className="flex items-center gap-2 hover:text-green-600 transition group"
+            className="hover:text-green-600 transition"
+            title="Share"
           >
-            <Share2 className="w-6 h-6 text-gray-700 group-hover:text-green-600" />
-            <span className="font-semibold text-gray-900">{video.shares_count}</span>
+            📤 <span className="text-base align-middle ml-1">{video.shares_count}</span>
           </button>
-
           <button
             onClick={() => setShowQRCode(true)}
-            className="flex items-center gap-2 hover:text-cyber-purple transition group"
+            className="hover:text-purple-600 transition"
+            title="QR Code"
           >
-            <QrCode className="w-6 h-6 text-gray-700 group-hover:text-cyber-purple" />
+            🧩
           </button>
         </div>
       </div>

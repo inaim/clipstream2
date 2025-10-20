@@ -170,6 +170,23 @@ async def upload_video(
                     channel = f"video:{video_id}:events"
                     payload = '{"type":"status","status":"processing","video_id":"%s"}' % (video_id)
                     r.publish(channel, payload)
+                    # Also publish a global 'video created' event so feed subscribers
+                    # can immediately surface newly uploaded videos (even if status != 'active')
+                    try:
+                        global_channel = "videos:events"
+                        import json as _json
+                        global_payload = _json.dumps({
+                            "type": "video_created",
+                            "video": {
+                                "id": video_id,
+                                "title": title,
+                                "cdn_url": cdn_url,
+                                "status": "processing"
+                            }
+                        })
+                        r.publish(global_channel, global_payload)
+                    except Exception as e:
+                        print(f"[UPLOAD] Warning: Failed to publish global video_created event: {e}")
                 except Exception as e:
                     print(f"[UPLOAD] Warning: Failed to publish initial Redis event: {e}")
             except Exception as e:

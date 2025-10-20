@@ -156,7 +156,7 @@ app.add_middleware(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=getattr(settings, 'CORS_ALLOW_CREDENTIALS', True),
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
