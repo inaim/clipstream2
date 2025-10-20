@@ -146,7 +146,24 @@ def encode_video(self, video_id: str):
         # Compute the expected input path from the record's filename
         if video and video.get('filename'):
             input_path = os.path.join(settings.UPLOAD_DIR, video.get('filename'))
-        if not input_path or not os.path.exists(input_path):
+        if not input_path:
+            raise Exception(f"Input file path for {video_id} could not be determined")
+
+        # If the input file is missing, retry a few times with a short sleep
+        # to handle the small window between upload completion and worker file
+        # visibility (e.g. due to container filesystem delays or atomic move).
+        max_check_attempts = 5
+        check_delay_seconds = 0.5
+        exists = os.path.exists(input_path)
+        attempt = 0
+        while not exists and attempt < max_check_attempts:
+            attempt += 1
+            logger.info(f"[ENCODER] Input file missing, attempt {attempt}/{max_check_attempts}, sleeping {check_delay_seconds}s")
+            import time as _time
+            _time.sleep(check_delay_seconds)
+            exists = os.path.exists(input_path)
+
+        if not exists:
             raise Exception(f"Input file {input_path} does not exist")
 
         # Output path for AV1 360p

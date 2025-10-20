@@ -65,10 +65,30 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 LOG = logging.getLogger("demo-backend")
 LOG.setLevel(logging.INFO)
 
-# Allow CORS for local frontend dev
+# Allow CORS for local frontend dev — read allowed origins from env to match
+# the main backend's behavior. Support comma-separated string or JSON list.
+cors_env = os.environ.get('CORS_ORIGINS')
+def parse_cors_origins(val):
+    if not val:
+        return ["http://localhost:5173", "http://localhost:8080"]
+    val = val.strip()
+    # JSON list
+    if val.startswith('['):
+        try:
+            import json
+            parsed = json.loads(val)
+            if isinstance(parsed, list):
+                return [s for s in parsed if isinstance(s, str)]
+        except Exception:
+            pass
+    # Comma-separated
+    return [s.strip() for s in val.split(',') if s.strip()]
+
+allowed_origins = parse_cors_origins(cors_env)
+LOG.info(f"Demo CORS allowed_origins: {allowed_origins}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

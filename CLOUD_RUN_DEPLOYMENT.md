@@ -95,9 +95,9 @@ gcloud run deploy clipstream-backend \
     --set-env-vars="SURREALDB_USER=root" \
     --set-env-vars="SURREALDB_NS=clipstream" \
     --set-env-vars="SURREALDB_DB=production" \
-    --set-env-vars="BACKEND_BASE_URL=https://backend.finailabz.com" \
-    --set-env-vars="FRONTEND_BASE_URL=https://clipstream.finailabz.com" \
-    --set-env-vars="ALLOWED_ORIGINS=[\"https://clipstream.finailabz.com\"]" \
+  --set-env-vars="BACKEND_BASE_URL=https://backend.finailabz.com" \
+  --set-env-vars="FRONTEND_BASE_URL=https://clipstream.finailabz.com" \
+  --set-env-vars="CORS_ORIGINS=https://clipstream.finailabz.com,https://clipstream-backend.finailabz.com" \
   --set-env-vars="GCS_BUCKET_NAME=clipstream-videos-regal-elf-472011-a5" \
   --set-env-vars="ENABLE_GCS=true" \
     --set-secrets="SURREALDB_PASS=surrealdb-password:latest" \

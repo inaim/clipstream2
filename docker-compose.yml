@@ -50,6 +50,7 @@ services:
       - IPFS_URL=/dns/ipfs/tcp/5001/http
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CORS_ORIGINS=https://clipstream.finailabz.com,https://clipstream-backend.finailabz.com
     volumes:
       - ./backend:/app
       - ./data/uploads:/app/uploads

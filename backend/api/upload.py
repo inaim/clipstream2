@@ -71,10 +71,35 @@ async def upload_video(
         unique_filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.{file_extension}"
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
         
-        # Read and save file
+        # Read and save file atomically to avoid workers seeing partial writes.
+        # We write to a .tmp subdirectory and then atomically rename into place.
         content = await file.read()
-        with open(file_path, 'wb') as f:
-            f.write(content)
+        tmp_dir = os.path.join(UPLOAD_DIR, '.tmp')
+        try:
+            os.makedirs(tmp_dir, exist_ok=True)
+        except Exception:
+            # ignore failures here; we'll try writing to UPLOAD_DIR directly
+            tmp_dir = UPLOAD_DIR
+
+        tmp_path = os.path.join(tmp_dir, unique_filename + '.part')
+        try:
+            with open(tmp_path, 'wb') as f:
+                f.write(content)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except Exception:
+                    # fsync may not be available on some systems; ignore
+                    pass
+            # Atomic replace into final path
+            os.replace(tmp_path, file_path)
+        except Exception as e:
+            # Fall back to direct write if atomic path fails
+            try:
+                with open(file_path, 'wb') as f:
+                    f.write(content)
+            except Exception as ex:
+                raise
         
         # Compute content hash
         content_hash = hashlib.sha256(content).hexdigest()

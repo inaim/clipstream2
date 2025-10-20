@@ -57,6 +57,8 @@ class Settings(BaseSettings):
         env="CORS_ORIGINS"
     )
     ALLOWED_ORIGINS: List[str] = Field(default_factory=list)
+    # Whether to allow credentials across origins. Useful to validate '*' isn't used in production.
+    CORS_ALLOW_CREDENTIALS: bool = Field(False, env="CORS_ALLOW_CREDENTIALS")
     MAX_UPLOAD_SIZE: int = Field(524288000, env="MAX_UPLOAD_SIZE")  # 500MB
     UPLOAD_DIR: str = Field("uploads", env="UPLOAD_DIR")
 
@@ -93,18 +95,58 @@ class Settings(BaseSettings):
         if cors_str:
             try:
                 # Try JSON list first
-                if cors_str.startswith("["):
+                if cors_str.strip().startswith("["):
                     import json
                     self.ALLOWED_ORIGINS = json.loads(cors_str)
                     print(f"[CONFIG] Parsed ALLOWED_ORIGINS from JSON: {self.ALLOWED_ORIGINS}")
                 else:
                     # Comma-separated
-                    self.ALLOWED_ORIGINS = [s.strip() for s in cors_str.split(",") if s.strip()]
+                    parsed = [s.strip() for s in cors_str.split(",") if s.strip()]
+                    # Normalize: remove trailing slashes
+                    normalized = []
+                    for o in parsed:
+                        o = o.rstrip('/')
+                        normalized.append(o)
+                    # Deduplicate while preserving order
+                    seen = set()
+                    self.ALLOWED_ORIGINS = [x for x in normalized if not (x in seen or seen.add(x))]
                     print(f"[CONFIG] Parsed ALLOWED_ORIGINS from comma-separated: {self.ALLOWED_ORIGINS}")
             except Exception as e:
                 print(f"[CONFIG] Error parsing CORS_ORIGINS: {e}, using defaults")
         else:
             print(f"[CONFIG] No CORS_ORIGINS_STR, using defaults: {self.ALLOWED_ORIGINS}")
+
+        # Auto-include frontend/backend base URLs if appropriate and not already present
+        try:
+            for candidate in (getattr(self, 'FRONTEND_BASE_URL', None), getattr(self, 'BACKEND_BASE_URL', None)):
+                if candidate:
+                    cand = candidate.rstrip('/')
+                    if cand not in self.ALLOWED_ORIGINS:
+                        # Only auto-include non-localhost by default to avoid hiding misconfig in prod
+                        if not cand.startswith('http://localhost') and not cand.startswith('http://127.'):
+                            self.ALLOWED_ORIGINS.append(cand)
+
+            # Production / Cloud Run validations
+            if self.is_production() or self.is_cloud_run():
+                # Disallow wildcard '*' when credentials are allowed
+                if getattr(self, 'CORS_ALLOW_CREDENTIALS', False) and ('*' in self.ALLOWED_ORIGINS):
+                    raise RuntimeError(
+                        "[CONFIG] CORS misconfiguration: '*' wildcard is not allowed when CORS_ALLOW_CREDENTIALS=true. "
+                        "Set CORS_ORIGINS to the explicit frontend and backend origins for production."
+                    )
+
+                # If after parsing and auto-includes there are no explicit origins, fail fast
+                if not self.ALLOWED_ORIGINS:
+                    raise RuntimeError(
+                        "[CONFIG] In production/cloud-run but CORS_ORIGINS is not set or resolved to an empty list. "
+                        "Set the CORS_ORIGINS env var to a JSON array or comma-separated list of allowed origins, "
+                        "for example: CORS_ORIGINS=https://clipstream.finailabz.com,https://clipstream-backend.finailabz.com"
+                    )
+        except Exception:
+            print(f"[CONFIG][ERROR] Invalid CORS configuration: {self.ALLOWED_ORIGINS}")
+            raise
+
+        print(f"[CONFIG] Final ALLOWED_ORIGINS: {self.ALLOWED_ORIGINS}")
         return self
 
     def is_production(self) -> bool:
