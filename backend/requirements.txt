@@ -1,7 +1,6 @@
 authlib
 fastapi
 python-multipart
-pydantic
 pydantic-settings
 surrealdb
 redis
@@ -20,6 +19,10 @@ python-dateutil
 pydantic[email]
 itsdangerous
 gunicorn
+
+google-cloud-storage
+uvicorn[standard]
+strawberry-graphql
 
 google-cloud-storage
 uvicorn[standard]

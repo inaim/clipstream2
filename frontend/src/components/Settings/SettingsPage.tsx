@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ConfirmDialog from '../ConfirmDialog/ConfirmDialog';
 import {
   User,
   Lock,
@@ -50,12 +51,17 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     suggestAccount: true,
   });
 
-  const handleLogout = async () => {
-    if (confirm(t('settings.confirmLogout') || 'Are you sure you want to log out?')) {
-      await signOut();
-      onClose();
-    }
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleLogoutClick = () => setConfirmOpen(true);
+
+  const handleConfirmLogout = async () => {
+    setConfirmOpen(false);
+    await signOut();
+    onClose();
   };
+
+  const handleCancelLogout = () => setConfirmOpen(false);
 
   const settingsSections = [
     {
@@ -138,7 +144,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <button
-          onClick={handleLogout}
+          onClick={handleLogoutClick}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-red-50 transition active:bg-red-100 text-red-600"
         >
           <div className="flex items-center gap-3">
@@ -147,6 +153,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        message={t('settings.confirmLogout') || 'Are you sure you want to log out?'}
+        confirmLabel={t('common.signOut') || 'Sign out'}
+        cancelLabel={t('common.cancel') || 'Cancel'}
+        onCancel={handleCancelLogout}
+        onConfirm={handleConfirmLogout}
+      />
 
       <div className="text-center text-sm text-gray-500 py-4">
         <p>ClipStream v1.0.0</p>

@@ -42,7 +42,8 @@ services:
   backend:
     build: ./backend
     container_name: clipstream-backend
-    ports: []
+    ports:
+      - "8080:8080"
     environment:
       - SURREALDB_URL=ws://surrealdb:8000/rpc
       - REDIS_URL=redis://redis:6379/0

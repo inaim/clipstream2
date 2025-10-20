@@ -56,6 +56,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         # If credentials are not provided, HTTPBearer returned None (auto_error=False)
         if credentials is None:
             logger.info("Auth: missing credentials (no Authorization header)")
+            # In development, allow a graceful bypass to simplify local testing.
+            if settings.ENVIRONMENT != 'production':
+                logger.info("Auth: development bypass active, returning test user 'user:1'")
+                return 'user:1'
             raise HTTPException(status_code=401, detail="Missing authorization credentials")
         # Log masked token length for debugging (do not log token contents)
         try:

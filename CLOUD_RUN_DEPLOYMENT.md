@@ -98,6 +98,8 @@ gcloud run deploy clipstream-backend \
     --set-env-vars="BACKEND_BASE_URL=https://backend.finailabz.com" \
     --set-env-vars="FRONTEND_BASE_URL=https://clipstream.finailabz.com" \
     --set-env-vars="ALLOWED_ORIGINS=[\"https://clipstream.finailabz.com\"]" \
+  --set-env-vars="GCS_BUCKET_NAME=clipstream-videos-regal-elf-472011-a5" \
+  --set-env-vars="ENABLE_GCS=true" \
     --set-secrets="SURREALDB_PASS=surrealdb-password:latest" \
     --set-secrets="SECRET_KEY=app-secret-key:latest" \
     --set-secrets="GOOGLE_CLIENT_ID=google-client-id:latest" \
@@ -182,6 +184,59 @@ gsutil -m setmeta -h "Cache-Control:public, max-age=31536000" \
 gsutil -m setmeta -h "Cache-Control:public, max-age=3600" \
     gs://clipstream-frontend/index.html
 ```
+
+### Step 4: Create media bucket for backend (GCS)
+
+The backend stores encoded video outputs and derived assets (thumbnails) in a separate GCS bucket. For your project use the bucket:
+
+- Full bucket URL: `gs://clipstream-videos-regal-elf-472011-a5/`
+- Region: `us-central1`
+- Storage class: `STANDARD`
+
+Create the bucket and grant your Cloud Run service account permission to write objects:
+
+```bash
+# Create the media bucket in the specified region and storage class
+gsutil mb -p $PROJECT_ID -c STANDARD -l us-central1 gs://clipstream-videos-regal-elf-472011-a5
+
+# Optionally set public access or lifecycle rules depending on your requirements
+
+# Grant your Cloud Run service account objectAdmin so it can upload files.
+# Replace <CLOUD_RUN_SA> with the service account used by Cloud Run, e.g.
+# ${PROJECT_NUMBER}-compute@developer.gserviceaccount.com or the service account
+# attached to the Cloud Run service.
+gcloud storage buckets add-iam-policy-binding gs://clipstream-videos-regal-elf-472011-a5 \
+  --member="serviceAccount:<CLOUD_RUN_SA>" \
+  --role="roles/storage.objectAdmin"
+```
+
+Notes:
+- In the backend config we expect `GCS_BUCKET_NAME` to contain the bucket **name** (without the `gs://` prefix), e.g. `clipstream-videos-regal-elf-472011-a5`.
+- Set `ENABLE_GCS=true` in Cloud Run so the encoding worker will upload outputs to GCS instead of using local `/uploads/` URLs.
+
+Important: fail-fast validation
+--------------------------------
+The backend includes a startup validation that will raise an error and prevent the service from starting when running in production if `ENABLE_GCS=true` but `GCS_BUCKET_NAME` is not set. To catch this earlier in CI, we've included a reusable GitHub Actions workflow (`.github/workflows/predeploy-validate-gcs.yml`) that will query the Cloud Run service configuration and fail the job if the environment is misconfigured.
+
+The CI check requires a service account with permissions to call Cloud Run Admin / Viewer and the `gcloud` CLI credentials in the `GCP_SA_KEY` secret. See the workflow file for details.
+
+Pre-deploy validation (workflow input variant)
+--------------------------------------------
+If you deploy from GitHub Actions, you can run a pre-deploy validation that checks the *variables you plan to pass to Cloud Run* before the deploy step runs. Use the provided reusable workflow `predeploy-validate-gcs-before-deploy.yml` to validate `ENABLE_GCS` and `GCS_BUCKET_NAME` as a build-time check.
+
+Example (call from your deploy job before the deploy step):
+
+```yaml
+# In your deploy workflow
+- name: Validate deploy envs
+  uses: ./.github/workflows/predeploy-validate-gcs-before-deploy.yml
+  with:
+    enable_gcs: ${{ env.ENABLE_GCS }}
+    gcs_bucket_name: ${{ env.GCS_BUCKET_NAME }}
+```
+
+This will fail the workflow early if `enable_gcs` is true but `gcs_bucket_name` is empty.
+
 
 ### Step 4: Setup Cloud CDN (Optional but Recommended)
 

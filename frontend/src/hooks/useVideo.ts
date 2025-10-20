@@ -6,7 +6,7 @@ export default function useVideo(videoId: string | undefined | null) {
   useEffect(() => {
     if (!videoId) return
 
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
     let es: EventSource | null = null
 

@@ -1,0 +1,52 @@
+name: Pre-deploy: Validate GCS settings
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-gcs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Fetch Cloud Run service env vars
+        id: fetch
+        run: |
+          SERVICE=${{ secrets.CLOUD_RUN_SERVICE_NAME }}
+          REGION=${{ secrets.CLOUD_RUN_REGION }}
+          echo "Fetching env vars for $SERVICE in $REGION"
+          gcloud run services describe "$SERVICE" --region "$REGION" --format=json > service.json
+          cat service.json
+          echo "::set-output name=service_json::$(cat service.json | jq -c '.')"
+
+      - name: Validate GCS config
+        run: |
+          python3 - <<'PY'
+import json,sys
+with open('service.json') as f:
+    svc = json.load(f)
+# Find env vars
+env = {}
+for c in svc.get('spec',{}).get('template',{}).get('spec',{}).get('containers',[]):
+    for e in c.get('env',[]):
+        env[e.get('name')] = e.get('value')
+enable_gcs = env.get('ENABLE_GCS','false').lower() in ('1','true','yes')
+gcs_bucket = env.get('GCS_BUCKET_NAME')
+print('ENABLE_GCS=', enable_gcs, 'GCS_BUCKET_NAME=', gcs_bucket)
+if enable_gcs and (not gcs_bucket or gcs_bucket.strip()==""):
+    print('ERROR: ENABLE_GCS is true but GCS_BUCKET_NAME is not set')
+    sys.exit(1)
+print('GCS validation passed')
+PY

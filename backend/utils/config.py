@@ -137,6 +137,32 @@ print(f"[CONFIG] FRONTEND_BASE_URL: {settings.FRONTEND_BASE_URL}")
 print(f"[CONFIG] SURREALDB_URL: {settings.SURREALDB_URL}")
 print(f"[CONFIG] SURREALDB_DB: {settings.SURREALDB_DB}")
 
+# Normalize UPLOAD_DIR to an absolute path so workers and API refer to the same
+# filesystem location regardless of process CWD. If UPLOAD_DIR is relative it is
+# resolved relative to the backend package root (/app) so volume mounts like
+# ./data/uploads -> /app/uploads work predictably inside Docker.
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+try:
+    if settings.UPLOAD_DIR:
+        if not os.path.isabs(settings.UPLOAD_DIR):
+            resolved_upload_dir = os.path.abspath(os.path.join(APP_DIR, settings.UPLOAD_DIR))
+        else:
+            resolved_upload_dir = settings.UPLOAD_DIR
+    else:
+        resolved_upload_dir = os.path.abspath(os.path.join(APP_DIR, 'uploads'))
+
+    # Ensure the directory exists and is writable (best-effort)
+    try:
+        os.makedirs(resolved_upload_dir, exist_ok=True)
+    except Exception as e:
+        print(f"[CONFIG][WARNING] Failed to create upload dir {resolved_upload_dir}: {e}")
+
+    # Assign back to settings so other modules can rely on an absolute path
+    settings.UPLOAD_DIR = resolved_upload_dir
+    print(f"[CONFIG] Resolved UPLOAD_DIR to: {settings.UPLOAD_DIR}")
+except Exception as e:
+    print(f"[CONFIG][WARNING] Unexpected error while resolving UPLOAD_DIR: {e}")
+
 # Auto-configure based on environment
 if settings.is_cloud_run():
     # Running on Cloud Run - adjust settings
@@ -146,3 +172,17 @@ if settings.is_cloud_run():
             "SURREALDB_URL",
             "wss://ancient-valley-06cu6ilhgptbp4ttr1a04b77oc.aws-euw1.surreal.cloud"
         )
+
+# Warn or fail if GCS is enabled but no bucket name provided — helps avoid surprises in Cloud Run
+if getattr(settings, 'ENABLE_GCS', False) and (not getattr(settings, 'GCS_BUCKET_NAME', None)):
+    msg = (
+        "[CONFIG] ENABLE_GCS is true but GCS_BUCKET_NAME is not set. "
+        "Workers will fail when attempting uploads. Set GCS_BUCKET_NAME env var to your bucket name "
+        "(e.g. clipstream-videos-regal-elf-472011-a5) or set ENABLE_GCS=false to disable uploads."
+    )
+    # Fail fast in production so misconfigured deployments don't start
+    if settings.is_production():
+        raise RuntimeError(msg)
+    else:
+        # In development print a warning only
+        print(f"[CONFIG][WARNING] {msg}")
