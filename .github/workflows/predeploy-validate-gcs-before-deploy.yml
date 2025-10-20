@@ -1,0 +1,32 @@
+name: Pre-deploy Validate GCS (before-deploy)
+
+on:
+  workflow_dispatch:
+
+inputs:
+  enable_gcs:
+    description: 'Enable GCS (true/false)'
+    required: true
+  gcs_bucket_name:
+    description: 'GCS bucket name to use (if enable_gcs=true)'
+    required: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.check.outcome }}
+    steps:
+      - name: Check inputs
+        id: check
+        run: |
+          ENABLE_GCS="${{ github.event.inputs.enable_gcs }}"
+          GCS_BUCKET_NAME="${{ github.event.inputs.gcs_bucket_name }}"
+          ENABLE_GCS_LOWER=$(echo "$ENABLE_GCS" | tr '[:upper:]' '[:lower:]')
+          if [ "$ENABLE_GCS_LOWER" = "true" ] || [ "$ENABLE_GCS_LOWER" = "1" ] || [ "$ENABLE_GCS_LOWER" = "yes" ]; then
+            if [ -z "$GCS_BUCKET_NAME" ]; then
+              echo "ERROR: enable_gcs is true but gcs_bucket_name is empty"
+              exit 1
+            fi
+          fi
+          echo "GCS validation passed"
