@@ -28,6 +28,7 @@ from utils.config import settings
 from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
 from api import auth, social_auth, users, upload, feed, videos
+from api import notifications, messages, search, sounds, admin, analytics, interests
 from api import graphql as graphql_api
 from starlette.responses import RedirectResponse
 
@@ -166,9 +167,16 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(social_auth.router, prefix="/api/v1/auth", tags=["Social Auth"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(interests.router, prefix="/api/v1/users", tags=["Interests"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
+app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
+app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
+app.include_router(search.router, prefix="/api/v1", tags=["Search & Discover"])
+app.include_router(sounds.router, prefix="/api/v1/sounds", tags=["Sounds"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 
 # Mount GraphQL endpoint at /graphql for querying videos and feed
 app.mount("/graphql", graphql_api.graphql_app)
