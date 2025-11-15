@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { LandingPage } from './components/Landing/LandingPage';
 import { TikTokStyleAuth } from './components/Auth/TikTokStyleAuth';
-import { MainApp } from './components/Layout/MainApp';
+import { EnhancedMainApp } from './components/Layout/EnhancedMainApp';
 import { AuthCallback } from './components/Auth/AuthCallback';
 
 function AppContent() {
@@ -54,7 +54,7 @@ function AppContent() {
   }
 
   if (user) {
-    return <MainApp />;
+    return <EnhancedMainApp />;
   }
 
   if (showAuth) {
