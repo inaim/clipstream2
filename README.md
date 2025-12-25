@@ -99,7 +99,7 @@ ClipStream is a next-generation video sharing platform that combines TikTok-like
 - **State Management**: React Context API
 - **Icons**: Lucide React
 - **QR Codes**: qrcode.react
-- **Authentication**: Supabase Auth
+- **Authentication**: SurrealDB-backed identity service + OAuth bridging
 
 #### **Backend**
 - **API Framework**: FastAPI 0.104
@@ -144,7 +144,7 @@ clipstream/
 │   │   │   └── LanguageContext.tsx
 │   │   ├── lib/             # Utilities & configs
 │   │   │   ├── i18n.ts      # Internationalisation
-│   │   │   ├── supabase.ts  # Supabase client
+│   │   │   ├── surrealdb.ts # SurrealDB compatibility + client helpers
 │   │   │   └── database.types.ts
 │   │   ├── App.tsx          # Main app component
 │   │   └── main.tsx         # Entry point
@@ -183,8 +183,21 @@ clipstream/
 │
 ├── docker-compose.yml       # Docker orchestration
 ├── README.md               # This file
-└── COMPLETE_SYSTEM_SUMMARY.md  # Detailed system docs
+└── docs/COMPLETE_SYSTEM_SUMMARY.md  # Detailed system docs (see docs/README.md)
 ```
+
+## 📚 Documentation Hub
+
+Every architecture overview, deployment checklist, and troubleshooting note now
+lives inside [`docs/`](docs/README.md). Start with the index to jump to:
+
+- `ARCHITECTURE.md` for diagrams + data flows
+- `FRONTEND_MOBILE_API_GUIDE.md` for client integration examples
+- `PRODUCTION_DEPLOYMENT.md` / `CLOUD_RUN_DEPLOYMENT.md` for rollout steps
+- `TESTING_GUIDE.md` for manual + automated test matrices
+
+Historical Supabase references were scrubbed—everything in `docs/` now reflects
+the SurrealDB-first, TikTok-style dApp architecture.
 
 ---
 
@@ -226,9 +239,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .env file
-cp .env.example .env
-# Edit .env with your configuration
+# Create or copy the env file (repo ships with backend/.env defaults)
+cp .env .env.local  # optional: keep a local override
+# Edit backend/.env (or .env.local) with your configuration
 
 # Start FastAPI server
 uvicorn main:app --reload --host 0.0.0.0 --port 8080
@@ -240,6 +253,45 @@ celery -A workers.video_worker worker --loglevel=info
 celery -A workers.video_worker beat --loglevel=info
 ```
 
+### **Local Dev Stack (Docker Compose)**
+
+Spin everything up locally—even if you also run against cloud databases—so you
+can reproduce the full flow end-to-end before touching shared environments:
+
+1. **Prep env files**
+   ```bash
+   cp backend/.env backend/.env.local   # optional overrides
+   cp frontend/.env frontend/.env.local
+   ```
+   Update `backend/.env` with any secrets/keys. Docker Compose mounts that file
+   into the backend, Celery worker, beat, and Flower containers automatically.
+
+2. **Start the core services**
+   ```bash
+   docker-compose up -d surrealdb redis ipfs
+   docker-compose up -d backend celery-worker celery-beat flower
+   ```
+
+3. **Tail logs & verify health**
+   ```bash
+   docker-compose logs -f backend
+   curl http://localhost:8080/docs  # FastAPI docs should load
+   ```
+
+4. **Run the frontend locally (talking to the containerized backend)**
+   ```bash
+   cd frontend
+   npm install
+   VITE_API_BASE_URL=http://localhost:8080 npm run dev
+   ```
+
+5. **Exercise the pipeline**
+   ```bash
+   python test/test_e2e_mobile_flow.py --backend http://localhost:8080
+   ```
+
+Stop the stack with `docker-compose down` (add `-v` to clear data).
+
 ### **4. Setup Frontend**
 
 ```bash
@@ -250,9 +302,9 @@ npm install
 # or
 yarn install
 
-# Create .env file
-cp .env.example .env
-# Edit .env with your Supabase credentials
+# Create or copy the env file (frontend/.env already contains sane defaults)
+cp .env .env.local  # optional
+# Update Vite env vars with your backend URL and OAuth keys (no Supabase needed)
 
 # Start development server
 npm run dev
@@ -278,9 +330,8 @@ yarn dev
 
 #### **Frontend (.env)**
 ```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_BACKEND_URL=http://localhost:8080
+VITE_API_BASE_URL=http://localhost:8080
+VITE_BACKEND_URL=http://localhost:8080 # optional legacy alias used by some scripts
 ```
 
 #### **Backend (.env)**
@@ -344,15 +395,13 @@ Content-Type: application/json
 ### **Video Upload**
 
 ```http
-POST /api/v1/video/upload
+POST /api/upload
 Authorization: Bearer <token>
 Content-Type: multipart/form-data
 
 {
   "file": <video_file>,
-  "title": "My Awesome Video",
-  "description": "Check this out!",
-  "hashtags": ["viral", "trending"]
+  "title": "My Awesome Video"
 }
 ```
 
@@ -434,6 +483,30 @@ For complete API documentation, visit: http://localhost:8080/docs
 - Language persistence in localStorage
 - Real-time language switching
 
+## 💼 Business Model
+
+- **Value Proposition**: TikTok-speed creation with on-chain, SurrealDB-backed
+  ownership metadata so influencers can provably control their catalog while
+  brands get auditable engagement + compliance data.
+- **Revenue Streams**:
+  1. **Live micro-payments** via gifts and tips (real-time USDC settlement).
+  2. **Creator Ad Share** — 45% of short-form ads + in-feed shopping referrals.
+  3. **Licensing + IP Vault** — mint trending clips as collectible drops or
+     limited commercial licenses.
+  4. **Insights-as-a-Service** — anonymized trend data packages for agencies.
+- **Incentives & Tokenomics**: $WATCH tokens reward views, retention, and
+  MCP/LLM-verified brand-safe uploads. SurrealDB’s multi-model graph keeps the
+  reputation state machine (view graph + payout ledger) in one place.
+- **Influencer Offering**:
+  - Guaranteed 80%+ net revenue share, tiered boosts for co-branded campaigns.
+  - Automated contract + campaign fulfillment dashboards fed by the MCP
+    verification events so creators can ship sponsored content with confidence.
+  - Cross-post automation to existing socials plus IPFS/Filecoin backup that
+    protects evergreen content.
+- **Market Flywheel**: More verified uploads → richer multi-modal embeddings →
+  better discovery → more watch time → more gift/ad revenue feeding the creator
+  pool, making it attractive for the next wave of influencers and advertisers.
+
 ---
 
 ## 🔐 Security
@@ -499,6 +572,22 @@ pytest
 # E2E tests
 npm run test:e2e
 ```
+
+### **Mobile → Upload → MCP/LLM Harness**
+
+Run the automated pipeline that signs in like the mobile app, uploads a sample
+clip, waits for SurrealDB to surface the record, and persists the LLM/MCP
+verdict via the new moderation endpoint:
+
+```bash
+python test/test_e2e_mobile_flow.py \
+  --backend http://localhost:8080 \
+  --video path/to/sample.mp4  # optional when ffmpeg is available
+```
+
+The harness reuses the SurrealDB compatibility layer, fetches context with the
+MCP client, and records an `llm_verification` object on the video so creators
+and reviewers can see the status inside the app immediately.
 
 ### **Test Coverage**
 - Unit tests for business logic
@@ -657,7 +746,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
 
 ### **How to Contribute**
 
@@ -704,7 +793,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Email**: support@clipstream.io
 - **Twitter**: [@ClipStreamApp](https://twitter.com/ClipStreamApp)
 - **Discord**: [Join our community](https://discord.gg/clipstream)
-- **Documentation**: https://docs.clipstream.io
+- **Documentation**: docs/README.md
 
 ---
 
@@ -731,4 +820,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 [Website](https://clipstream.io) • [Documentation](https://docs.clipstream.io) • [Community](https://discord.gg/clipstream)
 
 </div>
-

@@ -11,6 +11,7 @@ node_modules/
 frontend/node_modules/
 backend/venv/
 backend/.venv/
+backend/.clipstream_venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -85,3 +86,4 @@ docker-compose.override.yml
 .next/
 out/
 
+backend/env.yaml

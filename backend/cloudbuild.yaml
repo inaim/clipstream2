@@ -26,7 +26,8 @@ steps:
           --platform managed \
           --allow-unauthenticated \
           --port 8080 \
-          --set-env-vars="ENVIRONMENT=production,SURREALDB_URL=wss://ancient-valley-06cu6ilhgptbp4ttr1a04b77oc.aws-euw1.surreal.cloud,SURREALDB_USER=backend,SURREALDB_PASS=YourStrongPassword123,SURREALDB_NS=clipstream,SURREALDB_DB=production,REDIS_URL=redis://:globaldb123@34.182.72.40:6379/0,CELERY_BROKER_URL=redis://:globaldb123@34.182.72.40:6379/0,CELERY_RESULT_BACKEND=redis://:globaldb123@34.182.72.40:6379/1,SECRET_KEY=hOvZRapnpVkdzNIRARCGpitm2q29_8obHDZRNo0wpxY,JWT_ALGORITHM=HS256,ACCESS_TOKEN_EXPIRE_MINUTES=30,GOOGLE_CLIENT_ID=235194927143-j2i2l1v0uf80rddpsd7qucejn3roo31a.apps.googleusercontent.com,GOOGLE_CLIENT_SECRET=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,GOOGLE_REDIRECT_URI=https://clipstream-backend.finailabz.com/api/v1/auth/social/google/callback,CORS_ORIGINS=https://clipstream.finailabz.com,https://clipstream-backend.finailabz.com,http://localhost:5173,CORS_ALLOW_CREDENTIALS=True,LOG_LEVEL=INFO,RATE_LIMIT_ENABLED=True,RATE_LIMIT_PER_MINUTE=60,RATE_LIMIT_PER_HOUR=1000"
+          --env-vars-file=backend/env.yaml \
+          --set-secrets="SURREALDB_PASS=surrealdb-password:latest,SECRET_KEY=jwt-secret-key:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,REDIS_PASSWORD=redis-password:latest"
 
 substitutions:
   _SERVICE_NAME: clipstream-backend

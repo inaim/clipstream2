@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
-from typing import List
+from pydantic import BaseModel, Field
+from typing import Dict, List, Literal, Optional
 from db.surrealdb_client import db_client
 from utils.config import settings
+from utils.auth import get_current_user
 
 router = APIRouter()
 
@@ -104,3 +106,113 @@ async def video_events(request: Request, video_id: str):
             yield chunk
 
     return StreamingResponse(event_stream(), media_type='text/event-stream')
+
+
+class LLMVerificationPayload(BaseModel):
+    verdict: Literal["approved", "flagged", "rejected"] = Field(
+        ...,
+        description="Final moderation verdict returned by the LLM/MCP pipeline"
+    )
+    confidence: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Normalized confidence score reported by the verifier"
+    )
+    summary: str = Field(
+        ...,
+        max_length=500,
+        description="Short explanation of the verdict"
+    )
+    mcp_run_id: Optional[str] = Field(
+        default=None,
+        description="Identifier returned by the MCP job that orchestrated the verification"
+    )
+    metadata: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional structured metadata (labels, keyword hits, etc.)"
+    )
+
+
+@router.post('/videos/{video_id}/llm-verification')
+async def attach_llm_verification(
+    video_id: str,
+    payload: LLMVerificationPayload,
+    current_user_id: str = Depends(get_current_user)
+):
+    """Persist the result of the LLM/MCP verification pipeline and broadcast it to listeners."""
+    video = await db_client.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail='Not Found')
+
+    owner_id = ""
+    try:
+        owner_id = str(video.get('user_id') or video.get('user') or "")
+    except Exception:
+        owner_id = ""
+
+    allowed_callers = set()
+    if owner_id:
+        allowed_callers.add(owner_id)
+    mcp_service_account = getattr(settings, 'MCP_SERVICE_ACCOUNT_ID', None)
+    if mcp_service_account:
+        allowed_callers.add(mcp_service_account)
+
+    if allowed_callers and current_user_id not in allowed_callers:
+        raise HTTPException(status_code=403, detail="Only the uploader or the MCP verifier can mark this video")
+
+    verification = {
+        "verdict": payload.verdict,
+        "confidence": payload.confidence,
+        "summary": payload.summary,
+        "mcp_run_id": payload.mcp_run_id,
+        "metadata": payload.metadata or {},
+        "reviewed_by": current_user_id
+    }
+
+    status_map = {
+        "approved": "active",
+        "flagged": "flagged",
+        "rejected": "blocked"
+    }
+    target_status = status_map.get(payload.verdict)
+
+    update_fields: Dict[str, object] = {
+        "llm_verification": verification
+    }
+    if target_status:
+        update_fields["status"] = target_status
+
+    updated = await db_client.update_video_fields(video_id, update_fields)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to record verification state")
+
+    # Broadcast an SSE/Redis event so subscribed clients see the moderation update
+    try:
+        import json as _json
+        import redis as redis_sync
+
+        if settings.REDIS_URL:
+            payload_json = _json.dumps({
+                "type": "llm_verification",
+                "video_id": video_id,
+                "verdict": payload.verdict,
+                "status": target_status,
+                "mcp_run_id": payload.mcp_run_id,
+                "confidence": payload.confidence
+            })
+            channel = f"video:{video_id}:events"
+            try:
+                r = redis_sync.from_url(settings.REDIS_URL)
+                r.publish(channel, payload_json)
+            except Exception:
+                pass
+    except Exception:
+        # Non-blocking best-effort notification
+        pass
+
+    return {
+        "video_id": video_id,
+        "status": target_status or video.get("status"),
+        "llm_verification": verification
+    }

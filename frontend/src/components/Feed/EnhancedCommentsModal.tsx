@@ -381,7 +381,7 @@ export function EnhancedCommentsModal({ video, onClose, asPanel }: EnhancedComme
 }
 
 interface CommentItemProps {
-  comment: Comment;
+  comment: CommentWithLikes;
   onReply: (id: string) => void;
   onLike: (id: string) => void;
   onDelete: (id: string) => void;
