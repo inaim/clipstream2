@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Query, HTTPException, Body
-from typing import List
+from typing import List, Optional
 from db.surrealdb_client import db_client
 from utils.config import settings
 import json
@@ -9,10 +9,28 @@ try:
 except Exception:
     redis_sync = None
 
+try:
+    from ml.inference.scorer_service import get_scorer_service
+    AI_SCORING_ENABLED = True
+except Exception as e:
+    print(f"AI scoring not available: {e}")
+    AI_SCORING_ENABLED = False
+
 router = APIRouter()
 
 @router.get("/for-you")
-async def get_for_you_feed(request: Request, limit: int = 50):
+async def get_for_you_feed(
+    request: Request,
+    limit: int = 50,
+    user_id: Optional[str] = Query(None),
+    use_ai: bool = Query(True, description="Use AI-based personalized ranking")
+):
+    """
+    Get personalized For You feed.
+
+    If use_ai=True and user_id is provided, uses AI model for personalized ranking.
+    Otherwise falls back to time-based ordering.
+    """
     # Masked debug: indicate whether Authorization header is present (do not log token value)
     try:
         auth = request.headers.get('authorization')
@@ -24,8 +42,54 @@ async def get_for_you_feed(request: Request, limit: int = 50):
     except Exception:
         pass
 
-    videos = await db_client.get_for_you_feed(limit)
-    return videos
+    # Get candidate videos (larger pool for ranking)
+    candidate_limit = limit * 3 if use_ai and user_id else limit
+    videos = await db_client.get_for_you_feed(candidate_limit)
+
+    # Apply AI-based ranking if enabled and user_id provided
+    if use_ai and AI_SCORING_ENABLED and user_id and videos:
+        try:
+            # Get user data and history
+            user_data = await db_client.get_user_by_id(user_id)
+            if user_data:
+                # Get user's recent interactions (last 100)
+                from ml.events.video_events import VideoEventRecorder, EventType
+                event_recorder = VideoEventRecorder(db_client)
+                user_history_events = await event_recorder.get_user_events(
+                    user_id=user_id,
+                    limit=100,
+                    event_types=[EventType.WATCH, EventType.LIKE, EventType.COMPLETE]
+                )
+
+                # Convert events to history format
+                user_history = []
+                for event in user_history_events:
+                    user_history.append({
+                        'video_id': str(event.get('video_id', '')),
+                        'liked': event.get('type') == 'like',
+                        'watch_time': event.get('metadata', {}).get('watch_time', 0),
+                        'completed': event.get('type') == 'complete'
+                    })
+
+                # Score and rank videos using AI
+                scorer = get_scorer_service()
+                ranked_videos = await scorer.rank_feed(
+                    candidate_videos=videos,
+                    user_data=user_data,
+                    user_history=user_history,
+                    limit=limit,
+                    objective='engagement',  # Can be made configurable
+                    diversity_factor=0.2  # 20% diversity boost
+                )
+
+                print(f"AI ranking applied for user {user_id}: {len(ranked_videos)} videos")
+                return ranked_videos
+        except Exception as e:
+            print(f"AI ranking failed, falling back to default: {e}")
+            # Fall through to default behavior
+
+    # Default: return videos as-is (time-based ordering)
+    return videos[:limit]
 
 
 @router.get("/debug/recent-videos")
@@ -57,8 +121,17 @@ async def get_following_feed(request: Request, user_id: str = Query(...), limit:
 
 
 @router.get("/trending")
-async def get_trending_feed(request: Request, limit: int = 50):
-    """Get trending videos based on engagement metrics"""
+async def get_trending_feed(
+    request: Request,
+    limit: int = 50,
+    user_id: Optional[str] = Query(None),
+    use_ai: bool = Query(True, description="Use AI-based trending detection")
+):
+    """
+    Get trending videos based on engagement metrics and virality signals.
+
+    If use_ai=True, applies AI-based virality scoring in addition to engagement metrics.
+    """
     try:
         auth = request.headers.get('authorization')
         if auth:
@@ -68,8 +141,60 @@ async def get_trending_feed(request: Request, limit: int = 50):
     except Exception:
         pass
 
-    videos = await db_client.get_trending_feed(limit)
-    return videos
+    # Get candidate videos
+    videos = await db_client.get_trending_feed(limit * 2)
+
+    # Apply AI-based virality boosting if enabled
+    if use_ai and AI_SCORING_ENABLED and videos:
+        try:
+            from ml.events.video_events import VideoEventRecorder
+
+            # Compute virality metrics for each video
+            event_recorder = VideoEventRecorder(db_client)
+            scored_videos = []
+
+            for video in videos:
+                # Get virality metrics
+                virality = await event_recorder.compute_virality_metrics(video['id'])
+
+                # Combine base score with AI virality signals
+                base_score = (
+                    video.get('view_count', 0) * 1.0 +
+                    video.get('like_count', 0) * 5.0 +
+                    video.get('share_count', 0) * 10.0
+                )
+
+                # Boost viral and trending content
+                virality_boost = 1.0
+                if virality.get('is_viral'):
+                    virality_boost = 3.0
+                elif virality.get('is_trending'):
+                    virality_boost = 2.0
+
+                # Apply velocity multiplier
+                velocity_multiplier = 1.0 + (virality.get('velocity', 0) / 100.0)
+
+                final_score = base_score * virality_boost * velocity_multiplier
+
+                # Add virality metadata to video
+                video['virality_metrics'] = virality
+
+                scored_videos.append((video, final_score))
+
+            # Sort by final score
+            scored_videos.sort(key=lambda x: x[1], reverse=True)
+
+            # Return top videos
+            trending_videos = [video for video, score in scored_videos[:limit]]
+
+            print(f"AI trending applied: {len(trending_videos)} videos")
+            return trending_videos
+
+        except Exception as e:
+            print(f"AI trending failed, falling back to default: {e}")
+            # Fall through to default
+
+    return videos[:limit]
 
 
 @router.post('/debug/seed-video')
