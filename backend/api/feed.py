@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Request, Query, HTTPException, Body
-from typing import List
+from typing import List, Optional
 from db.surrealdb_client import db_client
 from utils.config import settings
+from app.scoring import rank_videos_for_user, explain_score
 import json
+import time
 
 try:
     import redis as redis_sync
@@ -12,7 +14,26 @@ except Exception:
 router = APIRouter()
 
 @router.get("/for-you")
-async def get_for_you_feed(request: Request, limit: int = 50):
+async def get_for_you_feed(
+    request: Request,
+    user_id: Optional[str] = Query(None, description="User ID for personalized ranking"),
+    limit: int = Query(50, description="Number of videos to return"),
+    use_ml: bool = Query(True, description="Use ML ranking algorithm")
+):
+    """
+    Get personalized "For You" feed using TikTok-style ML ranking.
+
+    **Without user_id:** Returns all active videos (no personalization)
+    **With user_id:** Returns ML-ranked videos based on:
+    - User interest (60%): Category preferences + embedding similarity
+    - Video quality (30%): Engagement metrics + age decay
+    - Exploration (10%): Discovery bonus for unseen videos
+
+    **Parameters:**
+    - user_id: Optional user ID for personalized ranking
+    - limit: Number of videos to return (default: 50)
+    - use_ml: Enable ML ranking (default: true)
+    """
     # Masked debug: indicate whether Authorization header is present (do not log token value)
     try:
         auth = request.headers.get('authorization')
@@ -24,8 +45,41 @@ async def get_for_you_feed(request: Request, limit: int = 50):
     except Exception:
         pass
 
-    videos = await db_client.get_for_you_feed(limit)
-    return videos
+    # Get candidate videos
+    candidate_videos = await db_client.get_for_you_feed(limit * 3)  # Get 3x for better ranking
+
+    # If no user_id or ML disabled, return unranked
+    if not user_id or not use_ml or not candidate_videos:
+        return candidate_videos[:limit] if candidate_videos else []
+
+    try:
+        # Get async DB client
+        async_db = getattr(db_client, "async_db", None)
+        if not async_db:
+            print("Warning: async_db not available, returning unranked feed")
+            return candidate_videos[:limit]
+
+        # Fetch user data
+        user_result = await async_db.query(f"SELECT * FROM {user_id}")
+        if not user_result or len(user_result) == 0 or not user_result[0].get("result"):
+            # User not found, return unranked
+            return candidate_videos[:limit]
+
+        user = user_result[0]["result"][0]
+
+        # Rank videos using ML algorithm
+        ranked_videos = rank_videos_for_user(
+            user=user,
+            candidate_videos=candidate_videos,
+            limit=limit,
+            now=time.time()
+        )
+
+        return ranked_videos
+
+    except Exception as e:
+        print(f"ML ranking failed: {e}, falling back to unranked feed")
+        return candidate_videos[:limit]
 
 
 @router.get("/debug/recent-videos")
@@ -194,3 +248,48 @@ async def seed_demo_video(payload: dict = Body(default=None)):
         pass
 
     return {"video": video}
+
+
+@router.get("/debug/explain-score")
+async def explain_video_score(
+    user_id: str = Query(..., description="User ID"),
+    video_id: str = Query(..., description="Video ID")
+):
+    """
+    Debug endpoint: Explain the ML ranking score for a (user, video) pair.
+
+    Returns detailed breakdown of:
+    - Total score
+    - Video quality component
+    - User interest component
+    - Exploration component
+    - Raw video stats
+    - User category stats
+    """
+    try:
+        # Get async DB client
+        async_db = getattr(db_client, "async_db", None)
+        if not async_db:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+
+        # Fetch user
+        user_result = await async_db.query(f"SELECT * FROM {user_id}")
+        if not user_result or len(user_result) == 0 or not user_result[0].get("result"):
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+        user = user_result[0]["result"][0]
+
+        # Fetch video
+        video_result = await async_db.query(f"SELECT * FROM {video_id}")
+        if not video_result or len(video_result) == 0 or not video_result[0].get("result"):
+            raise HTTPException(status_code=404, detail=f"Video '{video_id}' not found")
+        video = video_result[0]["result"][0]
+
+        # Explain score
+        explanation = explain_score(user, video, now=time.time())
+
+        return explanation
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to explain score: {str(e)}")
