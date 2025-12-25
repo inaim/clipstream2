@@ -127,10 +127,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Immediate client-side cleanup to avoid race where the app reloads
+    // and reads localStorage before the backend logout completes.
     localStorage.removeItem('clipstream_token');
     localStorage.removeItem('clipstream_user_id');
+    localStorage.removeItem('clipstream_remember');
+    localStorage.removeItem('access_token');
+    try {
+      // Clear sessionStorage too in case any flow used it
+      sessionStorage.clear();
+    } catch (e) {
+      // ignore
+    }
+
     setUser(null);
     setProfile(null);
+    setLoading(false);
+
+    // Fire-and-forget server-side logout to clear cookies. Don't await so UI updates immediately.
+    surreal.auth.signOut().catch((err: any) => console.warn('signOut backend failed:', err));
   };
 
   return (

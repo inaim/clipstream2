@@ -41,8 +41,8 @@
 
     <title>ClipStream - AI-Driven Video Platform</title>
 
-    <!-- Service Worker Registration (production only) -->
-    <script>
+  <!-- Service Worker Registration (production only) -->
+  <script type="module">
       try {
         const isProd = (import.meta && import.meta.env && import.meta.env.MODE === 'production') || (typeof process !== 'undefined' && process.env.NODE_ENV === 'production');
         if (isProd && 'serviceWorker' in navigator) {
@@ -71,7 +71,7 @@
           // ignore
         }
       }
-    </script>
+  </script>
   </head>
   <body>
     <div id="root"></div>

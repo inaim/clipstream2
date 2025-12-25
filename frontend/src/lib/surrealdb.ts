@@ -292,8 +292,28 @@ const auth = {
     }
   },
   signOut: async () => {
-    localStorage.removeItem('clipstream_token');
-    localStorage.removeItem('clipstream_user_id');
+    try {
+      // Attempt to clear server-side session (cookies) for OAuth flows
+      await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (err) {
+      // ignore network errors; proceed to clear client state
+      console.warn('Failed to call backend logout:', err);
+    }
+
+    // Clear client-side stored tokens and remember flag
+    try {
+      localStorage.removeItem('clipstream_token');
+      localStorage.removeItem('clipstream_user_id');
+      localStorage.removeItem('clipstream_remember');
+      localStorage.removeItem('access_token');
+      sessionStorage.clear();
+    } catch (e) {
+      // ignore storage errors
+    }
+
     return { error: null };
   },
 };
