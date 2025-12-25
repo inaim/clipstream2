@@ -44,13 +44,16 @@ services:
     container_name: clipstream-backend
     ports:
       - "8080:8080"
+    env_file:
+      - ./backend/.env
     environment:
-      - SURREALDB_URL=ws://surrealdb:8000/rpc
-      - REDIS_URL=redis://redis:6379/0
-      - IPFS_URL=/dns/ipfs/tcp/5001/http
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
-      - CORS_ORIGINS=https://clipstream.finailabz.com,https://clipstream-backend.finailabz.com
+      ENVIRONMENT: development
+      SURREALDB_URL: ws://surrealdb:8000/rpc
+      REDIS_URL: redis://redis:6379/0
+      IPFS_URL: /dns/ipfs/tcp/5001/http
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
     volumes:
       - ./backend:/app
       - ./data/uploads:/app/uploads
@@ -64,12 +67,15 @@ services:
   celery-worker:
     build: ./backend
     container_name: clipstream-celery-worker
+    env_file:
+      - ./backend/.env
     environment:
-      - SURREALDB_URL=ws://surrealdb:8000/rpc
-      - REDIS_URL=redis://redis:6379/0
-      - IPFS_URL=/dns/ipfs/tcp/5001/http
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      ENVIRONMENT: development
+      SURREALDB_URL: ws://surrealdb:8000/rpc
+      REDIS_URL: redis://redis:6379/0
+      IPFS_URL: /dns/ipfs/tcp/5001/http
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./backend:/app
       - ./data/uploads:/app/uploads
@@ -81,9 +87,12 @@ services:
   celery-beat:
     build: ./backend
     container_name: clipstream-celery-beat
+    env_file:
+      - ./backend/.env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      ENVIRONMENT: development
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
     volumes:
       - ./backend:/app
     depends_on:
@@ -94,8 +103,11 @@ services:
   flower:
     build: ./backend
     container_name: clipstream-flower
+    env_file:
+      - ./backend/.env
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      ENVIRONMENT: development
+      CELERY_BROKER_URL: redis://redis:6379/0
     depends_on:
       - redis
     restart: unless-stopped

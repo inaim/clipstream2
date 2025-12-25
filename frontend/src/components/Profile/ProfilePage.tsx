@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Video, Heart, Calendar, Settings } from 'lucide-react';
-import { surreal } from '../../lib/surrealdb';
+import { authApi, videoApi, socialApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from './EditProfileModal';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -22,7 +22,7 @@ interface ProfilePageProps {
 
 export function ProfilePage({ userId }: ProfilePageProps) {
   const { t } = useLanguage();
-  const { user: currentUser, profile: currentProfile } = useAuth();
+  const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [videos, setVideos] = useState<VideoType[]>([]);
   const [stats, setStats] = useState<ProfileStats>({
@@ -51,86 +51,81 @@ export function ProfilePage({ userId }: ProfilePageProps) {
 
   const loadProfile = async () => {
     if (!targetUserId) return;
-
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', targetUserId)
-      .maybeSingle();
-
-    if (data) {
+    try {
+      const data = await authApi.getProfile(targetUserId);
       setProfile(data);
+    } catch (err) {
+      setProfile(null);
     }
   };
 
   const loadVideos = async () => {
     if (!targetUserId) return;
-
-    const { data } = await supabase
-      .from('videos')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setVideos(data);
+    try {
+      const allVideos = await videoApi.listVideos(50, 0);
+      const userVideos = (allVideos || []).filter((v: any) => v.user_id === targetUserId);
+      setVideos(userVideos);
+    } catch (err) {
+      setVideos([]);
     }
     setLoading(false);
   };
 
   const loadStats = async () => {
     if (!targetUserId) return;
+    try {
+      const allVideos = await videoApi.listVideos(100, 0);
+      const userVideos = (allVideos || []).filter((v: any) => v.user_id === targetUserId);
+      const videosCount = userVideos.length;
+      const likesCount = userVideos.reduce((sum: number, v: any) => sum + (v.likes_count || 0), 0);
 
-    const [videosResult, likesResult, followersResult, followingResult] = await Promise.all([
-      supabase.from('videos').select('id', { count: 'exact' }).eq('user_id', targetUserId),
-      supabase.from('videos').select('likes_count').eq('user_id', targetUserId),
-      supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', targetUserId),
-      supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', targetUserId),
-    ]);
+      // Followers and following counts via API (if available)
+      // If not available, set to 0
+      let followersCount = 0;
+      let followingCount = 0;
+      try {
+        const followersRes = await fetch(`/api/follows?following_id=${targetUserId}`);
+        const followersData = await followersRes.json();
+        followersCount = Array.isArray(followersData) ? followersData.length : 0;
+      } catch {}
+      try {
+        const followingRes = await fetch(`/api/follows?follower_id=${targetUserId}`);
+        const followingData = await followingRes.json();
+        followingCount = Array.isArray(followingData) ? followingData.length : 0;
+      } catch {}
 
-    const totalLikes = likesResult.data?.reduce((sum, video) => sum + video.likes_count, 0) || 0;
-
-    setStats({
-      videosCount: videosResult.count || 0,
-      likesCount: totalLikes,
-      followersCount: followersResult.count || 0,
-      followingCount: followingResult.count || 0,
-    });
+      setStats({ videosCount, likesCount, followersCount, followingCount });
+    } catch {
+      setStats({ videosCount: 0, likesCount: 0, followersCount: 0, followingCount: 0 });
+    }
   };
 
   const checkFollowStatus = async () => {
     if (!currentUser || !targetUserId) return;
-
-    const { data } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('follower_id', currentUser.id)
-      .eq('following_id', targetUserId)
-      .maybeSingle();
-
-    setIsFollowing(!!data);
+    try {
+      const res = await fetch(`/api/follows?follower_id=${currentUser.id}&following_id=${targetUserId}`);
+      const data = await res.json();
+      setIsFollowing(Array.isArray(data) && data.length > 0);
+    } catch {
+      setIsFollowing(false);
+    }
   };
 
   const toggleFollow = async () => {
     if (!currentUser || !targetUserId) return;
-
-    if (isFollowing) {
-      await supabase
-        .from('follows')
-        .delete()
-        .eq('follower_id', currentUser.id)
-        .eq('following_id', targetUserId);
-
-      setIsFollowing(false);
-      setStats(prev => ({ ...prev, followersCount: prev.followersCount - 1 }));
-    } else {
-      await supabase
-        .from('follows')
-        .insert({ follower_id: currentUser.id, following_id: targetUserId });
-
-      setIsFollowing(true);
-      setStats(prev => ({ ...prev, followersCount: prev.followersCount + 1 }));
-    }
+    try {
+      const followerId = String(currentUser.id);
+      const followingId = String(targetUserId);
+      if (isFollowing) {
+        await socialApi.unfollowUser(followerId, followingId);
+        setIsFollowing(false);
+        setStats(prev => ({ ...prev, followersCount: prev.followersCount - 1 }));
+      } else {
+        await socialApi.followUser(followerId, followingId);
+        setIsFollowing(true);
+        setStats(prev => ({ ...prev, followersCount: prev.followersCount + 1 }));
+      }
+    } catch {}
   };
 
   if (loading || !profile) {
