@@ -30,6 +30,7 @@ from surrealdb import AsyncSurreal
 from api import auth, social_auth, users, upload, feed, videos, events
 from api import notifications, messages, search, sounds, admin, analytics, interests
 from api import graphql as graphql_api
+from api import infinite_feed, realtime_events, embeddings_api
 from starlette.responses import RedirectResponse
 
 # Import startup and ingestion modules
@@ -250,6 +251,9 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
 app.include_router(events.router, prefix="/api/v1", tags=["Events"])
+app.include_router(infinite_feed.router, prefix="/api/v1/infinite", tags=["Infinite Feed"])
+app.include_router(realtime_events.router, prefix="/api/v1/realtime", tags=["Real-time Events"])
+app.include_router(embeddings_api.router, prefix="/api/v1/embeddings", tags=["Embeddings"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
 app.include_router(search.router, prefix="/api/v1", tags=["Search & Discover"])
