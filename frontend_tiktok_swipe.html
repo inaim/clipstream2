@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clipstream - TikTok Style Swipe Feed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #000;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* Video Container */
+        .video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Video Player */
+        .video-player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+        /* Swipe Indicator */
+        .swipe-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .swipe-indicator.show {
+            opacity: 1;
+        }
+
+        /* Video Info Overlay */
+        .video-info {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            right: 80px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .video-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .video-category {
+            font-size: 14px;
+            opacity: 0.9;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .video-score {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        /* Action Buttons (Right Side) */
+        .actions {
+            position: absolute;
+            right: 12px;
+            bottom: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .action-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.25);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.9);
+        }
+
+        .action-btn.liked {
+            background: #ff2d55;
+        }
+
+        /* ML Feedback Panel */
+        .ml-feedback {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 12px;
+            color: white;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s;
+        }
+
+        .ml-feedback.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .ml-feedback-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #00ff88;
+        }
+
+        .ml-feedback-item {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Loading Indicator */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff3b30;
+        }
+
+        .connection-status.connected {
+            background: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <div class="video-container" id="videoContainer">
+        <!-- Video Player -->
+        <video class="video-player" id="videoPlayer" playsinline autoplay muted></video>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="connection-status" id="connectionStatus"></div>
+
+        <!-- Swipe Indicator -->
+        <div class="swipe-indicator" id="swipeIndicator"></div>
+
+        <!-- Video Info -->
+        <div class="video-info">
+            <div class="video-category" id="videoCategory">Loading...</div>
+            <div class="video-title" id="videoTitle">Loading videos...</div>
+            <div class="video-score" id="videoScore"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <button class="action-btn" id="likeBtn">❤️</button>
+            <button class="action-btn" id="shareBtn">📤</button>
+        </div>
+
+        <!-- ML Feedback Panel -->
+        <div class="ml-feedback" id="mlFeedback">
+            <div class="ml-feedback-title">🤖 ML Learning in Real-time</div>
+            <div id="mlFeedbackContent"></div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">Loading feed...</div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8080';
+        const USER_ID = 'user:test_' + Date.now(); // Temporary user ID
+
+        // State
+        let videos = [];
+        let currentIndex = 0;
+        let currentVideo = null;
+        let cursor = null;
+        let isPlaying = false;
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+        let videoStartTime = 0;
+        let mlFeedbackTimeout = null;
+        let eventSource = null;
+        let userPreferences = {};
+
+        // DOM Elements
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoTitle = document.getElementById('videoTitle');
+        const videoCategory = document.getElementById('videoCategory');
+        const videoScore = document.getElementById('videoScore');
+        const swipeIndicator = document.getElementById('swipeIndicator');
+        const likeBtn = document.getElementById('likeBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const mlFeedback = document.getElementById('mlFeedback');
+        const mlFeedbackContent = document.getElementById('mlFeedbackContent');
+        const loading = document.getElementById('loading');
+        const progressFill = document.getElementById('progressFill');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const videoContainer = document.getElementById('videoContainer');
+
+        // ============================================================================
+        // INITIALIZATION
+        // ============================================================================
+
+        async function init() {
+            console.log('🚀 Initializing Clipstream...');
+            console.log('User ID:', USER_ID);
+
+            // Create user
+            await createUser();
+
+            // Connect to real-time ML feedback stream
+            connectToMLStream();
+
+            // Load initial feed
+            await loadFeed();
+
+            // Setup touch handlers
+            setupTouchHandlers();
+
+            // Setup video handlers
+            setupVideoHandlers();
+
+            // Hide loading
+            loading.style.display = 'none';
+
+            console.log('✅ Clipstream initialized');
+        }
+
+        // ============================================================================
+        // USER CREATION
+        // ============================================================================
+
+        async function createUser() {
+            try {
+                const response = await fetch(`${API_URL}/api/v1/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: `test_${Date.now()}@clipstream.com`,
+                        password: 'test123',
+                        display_name: 'Test User'
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('✅ User created');
+                }
+            } catch (error) {
+                console.warn('User creation failed (might already exist):', error);
+            }
+        }
+
+        // ============================================================================
+        // REAL-TIME ML FEEDBACK STREAM (SSE)
+        // ============================================================================
+
+        function connectToMLStream() {
+            console.log('🔌 Connecting to ML feedback stream...');
+
+            eventSource = new EventSource(`${API_URL}/api/v1/realtime/stream/ml-feedback?user_id=${USER_ID}`);
+
+            eventSource.onopen = () => {
+                console.log('✅ ML feedback stream connected');
+                connectionStatus.classList.add('connected');
+            };
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'ml_update') {
+                        handleMLFeedback(data.feedback);
+                    }
+                } catch (error) {
+                    console.error('Error parsing ML feedback:', error);
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.warn('❌ ML feedback stream disconnected');
+                connectionStatus.classList.remove('connected');
+
+                // Reconnect after 3 seconds
+                setTimeout(() => connectToMLStream(), 3000);
+            };
+        }
+
+        function handleMLFeedback(feedback) {
+            console.log('🤖 ML Feedback:', feedback);
+
+            // Update user preferences
+            userPreferences = feedback.updated_preferences;
+
+            // Show ML feedback panel
+            let html = '';
+
+            // Show top 3 preferred categories
+            const sortedPrefs = Object.entries(userPreferences)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+
+            sortedPrefs.forEach(([cat, score]) => {
+                html += `
+                    <div class="ml-feedback-item">
+                        <span>${cat}</span>
+                        <span>${(score * 100).toFixed(0)}%</span>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div class="ml-feedback-item">
+                    <span>Next: ${feedback.next_video_prediction || 'Mixed'}</span>
+                    <span>Score: ${(feedback.personalization_score * 100).toFixed(0)}%</span>
+                </div>
+            `;
+
+            mlFeedbackContent.innerHTML = html;
+
+            // Show panel temporarily
+            mlFeedback.classList.add('show');
+
+            clearTimeout(mlFeedbackTimeout);
+            mlFeedbackTimeout = setTimeout(() => {
+                mlFeedback.classList.remove('show');
+            }, 5000);
+        }
+
+        // ============================================================================
+        // FEED LOADING (Infinite Scroll)
+        // ============================================================================
+
+        async function loadFeed() {
+            try {
+                console.log('📥 Loading feed...', cursor ? `cursor: ${cursor}` : 'initial');
+
+                const url = `${API_URL}/api/v1/infinite/infinite`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: USER_ID,
+                        cursor: cursor,
+                        limit: 10,
+                        exclude_seen: true
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.videos && data.videos.length > 0) {
+                    videos.push(...data.videos);
+                    cursor = data.next_cursor;
+
+                    console.log(`✅ Loaded ${data.videos.length} videos (total: ${videos.length})`);
+
+                    // Play first video if not playing
+                    if (!isPlaying && currentIndex === 0) {
+                        playVideo(0);
+                    }
+                } else {
+                    console.log('⚠️ No more videos');
+                }
+
+            } catch (error) {
+                console.error('Error loading feed:', error);
+            }
+        }
+
+        // ============================================================================
+        // VIDEO PLAYBACK
+        // ============================================================================
+
+        function playVideo(index) {
+            if (index >= videos.length) {
+                // Load more videos
+                loadFeed();
+                return;
+            }
+
+            currentIndex = index;
+            currentVideo = videos[index];
+            videoStartTime = Date.now();
+
+            console.log('▶️ Playing video:', currentVideo.title, currentVideo.category);
+
+            // Update UI
+            videoPlayer.src = currentVideo.cdn_url || currentVideo.url;
+            videoTitle.textContent = currentVideo.title;
+            videoCategory.textContent = currentVideo.category.toUpperCase();
+            videoScore.textContent = currentVideo.score
+                ? `ML Score: ${(currentVideo.score * 100).toFixed(0)}%`
+                : '';
+
+            // Reset like button
+            likeBtn.classList.remove('liked');
+
+            // Play video
+            videoPlayer.play();
+            isPlaying = true;
+
+            // Prefetch next videos if running low
+            if (videos.length - currentIndex < 3) {
+                loadFeed();
+            }
+        }
+
+        function nextVideo() {
+            playVideo(currentIndex + 1);
+        }
+
+        function previousVideo() {
+            if (currentIndex > 0) {
+                playVideo(currentIndex - 1);
+            }
+        }
+
+        // ============================================================================
+        // TOUCH/SWIPE HANDLERS
+        // ============================================================================
+
+        function setupTouchHandlers() {
+            videoContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+            videoContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+            videoContainer.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+            // Mouse events for desktop testing
+            videoContainer.addEventListener('mousedown', handleTouchStart);
+            videoContainer.addEventListener('mousemove', handleTouchMove);
+            videoContainer.addEventListener('mouseup', handleTouchEnd);
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            isDragging = true;
+            startY = e.touches ? e.touches[0].clientY : e.clientY;
+            currentY = startY;
+        }
+
+        function handleTouchMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            currentY = e.touches ? e.touches[0].clientY : e.clientY;
+            const deltaY = currentY - startY;
+
+            // Show swipe indicator
+            if (Math.abs(deltaY) > 50) {
+                if (deltaY < 0) {
+                    // Swipe up (like)
+                    swipeIndicator.textContent = '❤️';
+                    swipeIndicator.classList.add('show');
+                } else {
+                    // Swipe down (skip)
+                    swipeIndicator.textContent = '⏭️';
+                    swipeIndicator.classList.add('show');
+                }
+            } else {
+                swipeIndicator.classList.remove('show');
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            isDragging = false;
+            const deltaY = currentY - startY;
+
+            // Hide indicator
+            swipeIndicator.classList.remove('show');
+
+            // Swipe threshold: 100px
+            if (Math.abs(deltaY) > 100) {
+                if (deltaY < 0) {
+                    // Swipe up = Like
+                    handleLike();
+                } else {
+                    // Swipe down = Skip
+                    handleSkip();
+                }
+            }
+        }
+
+        // ============================================================================
+        // EVENT LOGGING
+        // ============================================================================
+
+        async function logEvent(eventType) {
+            const watchTime = (Date.now() - videoStartTime) / 1000;
+            const watchRatio = Math.min(watchTime / currentVideo.duration, 1.0);
+
+            const event = {
+                user_id: USER_ID,
+                video_id: currentVideo.id,
+                event_type: eventType,
+                watch_ratio: watchRatio,
+                category: currentVideo.category,
+                timestamp: Date.now() / 1000
+            };
+
+            console.log('📊 Logging event:', eventType, `watch_ratio: ${(watchRatio * 100).toFixed(0)}%`);
+
+            try {
+                // Use real-time event endpoint (triggers ML feedback via SSE)
+                const response = await fetch(`${API_URL}/api/v1/realtime/stream/event`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(event)
+                });
+
+                const feedback = await response.json();
+                console.log('✅ Event logged, ML feedback:', feedback);
+
+            } catch (error) {
+                console.error('Error logging event:', error);
+            }
+        }
+
+        // ============================================================================
+        // USER ACTIONS
+        // ============================================================================
+
+        function handleLike() {
+            console.log('❤️ Like');
+            likeBtn.classList.add('liked');
+            logEvent('like');
+
+            // Auto-advance after short delay
+            setTimeout(() => nextVideo(), 500);
+        }
+
+        function handleSkip() {
+            console.log('⏭️ Skip');
+            logEvent('skip');
+            nextVideo();
+        }
+
+        function handleShare() {
+            console.log('📤 Share');
+            logEvent('share');
+        }
+
+        // ============================================================================
+        // VIDEO EVENT HANDLERS
+        // ============================================================================
+
+        function setupVideoHandlers() {
+            // Update progress bar
+            videoPlayer.addEventListener('timeupdate', () => {
+                const progress = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+                progressFill.style.width = `${progress}%`;
+            });
+
+            // Auto-advance when video ends
+            videoPlayer.addEventListener('ended', () => {
+                console.log('🏁 Video ended');
+                logEvent('play_end');
+                nextVideo();
+            });
+
+            // Handle errors
+            videoPlayer.addEventListener('error', (e) => {
+                console.error('Video error:', e);
+                nextVideo();
+            });
+        }
+
+        // ============================================================================
+        // BUTTON HANDLERS
+        // ============================================================================
+
+        likeBtn.addEventListener('click', handleLike);
+        shareBtn.addEventListener('click', handleShare);
+
+        // ============================================================================
+        // START APP
+        // ============================================================================
+
+        init();
+    </script>
+</body>
+</html>
