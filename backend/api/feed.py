@@ -2,34 +2,37 @@ from fastapi import APIRouter, Request, Query, HTTPException, Body
 from typing import List, Optional
 from db.surrealdb_client import db_client
 from utils.config import settings
+from app.scoring import rank_videos_for_user, explain_score
 import json
+import time
 
 try:
     import redis as redis_sync
 except Exception:
     redis_sync = None
 
-try:
-    from ml.inference.scorer_service import get_scorer_service
-    AI_SCORING_ENABLED = True
-except Exception as e:
-    print(f"AI scoring not available: {e}")
-    AI_SCORING_ENABLED = False
-
 router = APIRouter()
 
 @router.get("/for-you")
 async def get_for_you_feed(
     request: Request,
-    limit: int = 50,
-    user_id: Optional[str] = Query(None),
-    use_ai: bool = Query(True, description="Use AI-based personalized ranking")
+    user_id: Optional[str] = Query(None, description="User ID for personalized ranking"),
+    limit: int = Query(50, description="Number of videos to return"),
+    use_ml: bool = Query(True, description="Use ML ranking algorithm")
 ):
     """
-    Get personalized For You feed.
+    Get personalized "For You" feed using TikTok-style ML ranking.
 
-    If use_ai=True and user_id is provided, uses AI model for personalized ranking.
-    Otherwise falls back to time-based ordering.
+    **Without user_id:** Returns all active videos (no personalization)
+    **With user_id:** Returns ML-ranked videos based on:
+    - User interest (60%): Category preferences + embedding similarity
+    - Video quality (30%): Engagement metrics + age decay
+    - Exploration (10%): Discovery bonus for unseen videos
+
+    **Parameters:**
+    - user_id: Optional user ID for personalized ranking
+    - limit: Number of videos to return (default: 50)
+    - use_ml: Enable ML ranking (default: true)
     """
     # Masked debug: indicate whether Authorization header is present (do not log token value)
     try:
@@ -42,54 +45,41 @@ async def get_for_you_feed(
     except Exception:
         pass
 
-    # Get candidate videos (larger pool for ranking)
-    candidate_limit = limit * 3 if use_ai and user_id else limit
-    videos = await db_client.get_for_you_feed(candidate_limit)
+    # Get candidate videos
+    candidate_videos = await db_client.get_for_you_feed(limit * 3)  # Get 3x for better ranking
 
-    # Apply AI-based ranking if enabled and user_id provided
-    if use_ai and AI_SCORING_ENABLED and user_id and videos:
-        try:
-            # Get user data and history
-            user_data = await db_client.get_user_by_id(user_id)
-            if user_data:
-                # Get user's recent interactions (last 100)
-                from ml.events.video_events import VideoEventRecorder, EventType
-                event_recorder = VideoEventRecorder(db_client)
-                user_history_events = await event_recorder.get_user_events(
-                    user_id=user_id,
-                    limit=100,
-                    event_types=[EventType.WATCH, EventType.LIKE, EventType.COMPLETE]
-                )
+    # If no user_id or ML disabled, return unranked
+    if not user_id or not use_ml or not candidate_videos:
+        return candidate_videos[:limit] if candidate_videos else []
 
-                # Convert events to history format
-                user_history = []
-                for event in user_history_events:
-                    user_history.append({
-                        'video_id': str(event.get('video_id', '')),
-                        'liked': event.get('type') == 'like',
-                        'watch_time': event.get('metadata', {}).get('watch_time', 0),
-                        'completed': event.get('type') == 'complete'
-                    })
+    try:
+        # Get async DB client
+        async_db = getattr(db_client, "async_db", None)
+        if not async_db:
+            print("Warning: async_db not available, returning unranked feed")
+            return candidate_videos[:limit]
 
-                # Score and rank videos using AI
-                scorer = get_scorer_service()
-                ranked_videos = await scorer.rank_feed(
-                    candidate_videos=videos,
-                    user_data=user_data,
-                    user_history=user_history,
-                    limit=limit,
-                    objective='engagement',  # Can be made configurable
-                    diversity_factor=0.2  # 20% diversity boost
-                )
+        # Fetch user data
+        user_result = await async_db.query(f"SELECT * FROM {user_id}")
+        if not user_result or len(user_result) == 0 or not user_result[0].get("result"):
+            # User not found, return unranked
+            return candidate_videos[:limit]
 
-                print(f"AI ranking applied for user {user_id}: {len(ranked_videos)} videos")
-                return ranked_videos
-        except Exception as e:
-            print(f"AI ranking failed, falling back to default: {e}")
-            # Fall through to default behavior
+        user = user_result[0]["result"][0]
 
-    # Default: return videos as-is (time-based ordering)
-    return videos[:limit]
+        # Rank videos using ML algorithm
+        ranked_videos = rank_videos_for_user(
+            user=user,
+            candidate_videos=candidate_videos,
+            limit=limit,
+            now=time.time()
+        )
+
+        return ranked_videos
+
+    except Exception as e:
+        print(f"ML ranking failed: {e}, falling back to unranked feed")
+        return candidate_videos[:limit]
 
 
 @router.get("/debug/recent-videos")
@@ -121,17 +111,8 @@ async def get_following_feed(request: Request, user_id: str = Query(...), limit:
 
 
 @router.get("/trending")
-async def get_trending_feed(
-    request: Request,
-    limit: int = 50,
-    user_id: Optional[str] = Query(None),
-    use_ai: bool = Query(True, description="Use AI-based trending detection")
-):
-    """
-    Get trending videos based on engagement metrics and virality signals.
-
-    If use_ai=True, applies AI-based virality scoring in addition to engagement metrics.
-    """
+async def get_trending_feed(request: Request, limit: int = 50):
+    """Get trending videos based on engagement metrics"""
     try:
         auth = request.headers.get('authorization')
         if auth:
@@ -141,60 +122,8 @@ async def get_trending_feed(
     except Exception:
         pass
 
-    # Get candidate videos
-    videos = await db_client.get_trending_feed(limit * 2)
-
-    # Apply AI-based virality boosting if enabled
-    if use_ai and AI_SCORING_ENABLED and videos:
-        try:
-            from ml.events.video_events import VideoEventRecorder
-
-            # Compute virality metrics for each video
-            event_recorder = VideoEventRecorder(db_client)
-            scored_videos = []
-
-            for video in videos:
-                # Get virality metrics
-                virality = await event_recorder.compute_virality_metrics(video['id'])
-
-                # Combine base score with AI virality signals
-                base_score = (
-                    video.get('view_count', 0) * 1.0 +
-                    video.get('like_count', 0) * 5.0 +
-                    video.get('share_count', 0) * 10.0
-                )
-
-                # Boost viral and trending content
-                virality_boost = 1.0
-                if virality.get('is_viral'):
-                    virality_boost = 3.0
-                elif virality.get('is_trending'):
-                    virality_boost = 2.0
-
-                # Apply velocity multiplier
-                velocity_multiplier = 1.0 + (virality.get('velocity', 0) / 100.0)
-
-                final_score = base_score * virality_boost * velocity_multiplier
-
-                # Add virality metadata to video
-                video['virality_metrics'] = virality
-
-                scored_videos.append((video, final_score))
-
-            # Sort by final score
-            scored_videos.sort(key=lambda x: x[1], reverse=True)
-
-            # Return top videos
-            trending_videos = [video for video, score in scored_videos[:limit]]
-
-            print(f"AI trending applied: {len(trending_videos)} videos")
-            return trending_videos
-
-        except Exception as e:
-            print(f"AI trending failed, falling back to default: {e}")
-            # Fall through to default
-
-    return videos[:limit]
+    videos = await db_client.get_trending_feed(limit)
+    return videos
 
 
 @router.post('/debug/seed-video')
@@ -319,3 +248,48 @@ async def seed_demo_video(payload: dict = Body(default=None)):
         pass
 
     return {"video": video}
+
+
+@router.get("/debug/explain-score")
+async def explain_video_score(
+    user_id: str = Query(..., description="User ID"),
+    video_id: str = Query(..., description="Video ID")
+):
+    """
+    Debug endpoint: Explain the ML ranking score for a (user, video) pair.
+
+    Returns detailed breakdown of:
+    - Total score
+    - Video quality component
+    - User interest component
+    - Exploration component
+    - Raw video stats
+    - User category stats
+    """
+    try:
+        # Get async DB client
+        async_db = getattr(db_client, "async_db", None)
+        if not async_db:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+
+        # Fetch user
+        user_result = await async_db.query(f"SELECT * FROM {user_id}")
+        if not user_result or len(user_result) == 0 or not user_result[0].get("result"):
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+        user = user_result[0]["result"][0]
+
+        # Fetch video
+        video_result = await async_db.query(f"SELECT * FROM {video_id}")
+        if not video_result or len(video_result) == 0 or not video_result[0].get("result"):
+            raise HTTPException(status_code=404, detail=f"Video '{video_id}' not found")
+        video = video_result[0]["result"][0]
+
+        # Explain score
+        explanation = explain_score(user, video, now=time.time())
+
+        return explanation
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to explain score: {str(e)}")

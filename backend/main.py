@@ -27,10 +27,14 @@ import logging
 from utils.config import settings
 from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
-from api import auth, social_auth, users, upload, feed, videos
+from api import auth, social_auth, users, upload, feed, videos, events
 from api import notifications, messages, search, sounds, admin, analytics, interests
 from api import graphql as graphql_api
 from starlette.responses import RedirectResponse
+
+# Import startup and ingestion modules
+from app.startup import init_surreal, build_schema, verify_schema
+from app.ingestion_engine import ingest_initial_videos, generate_demo_videos
 
 # Configure logging
 logging.basicConfig(
@@ -43,11 +47,19 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("� Starting ClipStream Backend...")
+    logger.info("=" * 60)
+    logger.info("CLIPSTREAM APP STARTUP LIFECYCLE")
+    logger.info("=" * 60)
+
     try:
+        # ============================================
+        # STEP 1: Connect to SurrealDB
+        # ============================================
+        logger.info("\n[STEP 1] Connecting to SurrealDB...")
+
         # Connect the existing blocking db_client (keeps current API compatible)
         await db_client.connect()
-        logger.info("✅ Blocking SurrealDB client connected")
+        logger.info("Blocking SurrealDB client connected")
 
         # Additionally create an AsyncSurreal client and attach it to db_client
         # so parts of the app can use the async SDK directly if needed.
@@ -75,29 +87,95 @@ async def lifespan(app: FastAPI):
             await async_db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
             # Attach to db_client for optional async access
             setattr(db_client, "async_db", async_db)
-            logger.info("✅ Async SurrealDB client connected and attached to db_client")
+            logger.info("Async SurrealDB client connected and attached to db_client")
         except Exception as e:
-            logger.warning(f"⚠️  Failed to initialize AsyncSurreal client: {e}")
+            logger.warning(f"Failed to initialize AsyncSurreal client: {e}")
+
+        # ============================================
+        # STEP 2: Build Database Schema (Idempotent)
+        # ============================================
+        logger.info("\n[STEP 2] Building database schema...")
+        try:
+            await build_schema(async_db)
+            logger.info("Schema built successfully")
+
+            # Verify schema
+            schema_info = await verify_schema(async_db)
+            logger.info(f"Verified {len(schema_info)} tables")
+        except Exception as e:
+            logger.error(f"Schema building failed: {e}")
+
+        # ============================================
+        # STEP 3: Start Ingestion Engine
+        # ============================================
+        logger.info("\n[STEP 3] Starting video ingestion engine...")
+
+        # Check if we should ingest demo videos (controlled by env var)
+        ingest_demo = os.getenv("INGEST_DEMO_VIDEOS", "true").lower() == "true"
+
+        if ingest_demo:
+            try:
+                # Generate demo videos for testing
+                demo_count = int(os.getenv("DEMO_VIDEO_COUNT", "10"))
+                logger.info(f"Generating {demo_count} demo videos...")
+                demo_videos = await generate_demo_videos(count=demo_count)
+
+                # Ingest demo videos
+                result = await ingest_initial_videos(async_db, demo_videos)
+                logger.info(
+                    f"Ingestion complete: {result['ingested']}/{result['total']} videos ingested"
+                )
+
+                if result['errors']:
+                    logger.warning(f"{len(result['errors'])} ingestion errors occurred")
+            except Exception as e:
+                logger.error(f"Demo video ingestion failed: {e}")
+        else:
+            logger.info("Demo video ingestion disabled (set INGEST_DEMO_VIDEOS=true to enable)")
+
+        # ============================================
+        # STEP 4: Platform Ready
+        # ============================================
+        logger.info("\n[STEP 4] Platform ready for beta")
+        logger.info("=" * 60)
+        logger.info("ML-Powered Feed: /api/v1/feed/for-you?user_id=...")
+        logger.info("Event Logging: POST /api/v1/events")
+        logger.info("Video Upload: POST /api/upload")
+        logger.info("Analytics: GET /api/v1/events/analytics/video/{id}")
+        logger.info("Score Debug: GET /api/v1/feed/debug/explain-score")
+        logger.info("=" * 60)
+        logger.info("TikTok-Style ML Algorithm Active:")
+        logger.info("  - User Interest (60%): Category prefs + embeddings")
+        logger.info("  - Video Quality (30%): Engagement + age decay")
+        logger.info("  - Exploration (10%): UCB discovery bonus")
+        logger.info("=" * 60)
+        logger.info("Clipstream backend ready - videos ingested, schema built, beta open")
+        logger.info("=" * 60)
+
     except Exception as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        logger.error(f"Startup failed: {e}")
 
     yield
 
     # Shutdown
-    logger.info("👋 Shutting down ClipStream Backend...")
+    logger.info("\n" + "=" * 60)
+    logger.info("CLIPSTREAM APP SHUTDOWN")
+    logger.info("=" * 60)
+    logger.info("Shutting down ClipStream Backend...")
     try:
         await db_client.disconnect()
-        logger.info("✅ Database disconnected")
+        logger.info("Database disconnected")
     except Exception as e:
-        logger.error(f"❌ Database disconnection failed: {e}")
+        logger.error(f"Database disconnection failed: {e}")
     # If an async Surreal client was attached to db_client, close it as well
     try:
         async_db = getattr(db_client, "async_db", None)
         if async_db is not None:
             await async_db.close()
-            logger.info("✅ Async SurrealDB client closed")
+            logger.info("Async SurrealDB client closed")
     except Exception as e:
-        logger.warning(f"⚠️  Failed to close async SurrealDB client: {e}")
+        logger.warning(f"Failed to close async SurrealDB client: {e}")
+    logger.info("=" * 60)
 
 # Create FastAPI app
 app = FastAPI(
@@ -171,6 +249,7 @@ app.include_router(interests.router, prefix="/api/v1/users", tags=["Interests"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(videos.router, prefix="/api", tags=["Videos"])
 app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
+app.include_router(events.router, prefix="/api/v1", tags=["Events"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["Messages"])
 app.include_router(search.router, prefix="/api/v1", tags=["Search & Discover"])
