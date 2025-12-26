@@ -26,4 +26,4 @@ GET /api/v1/embeddings/similar/video:5?k=10&min_similarity=0.7
 GET /api/v1/embeddings/stats
 ```
 
-See full documentation in `docs/guides/EMBEDDINGS.md`
+See full documentation in EMBEDDINGS_GUIDE.md

@@ -1,9 +1,3 @@
-<!--
-Version: v20251226
-Last-updated: 2025-12-26
-Status: canonical
--->
-
 # 🎯 Collision-less Embedding Tables - Complete Guide
 
 ## What is This?

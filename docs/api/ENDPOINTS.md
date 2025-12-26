@@ -1,9 +1,3 @@
-<!--
-Version: v20251226
-Last-updated: 2025-12-26
-Status: canonical
--->
-
 # 📡 API Endpoints Reference
 
 Complete API reference for Clipstream.
