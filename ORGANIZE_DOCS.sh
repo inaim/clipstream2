@@ -245,7 +245,7 @@ GET /api/v1/embeddings/similar/video:5?k=10&min_similarity=0.7
 GET /api/v1/embeddings/stats
 ```
 
-See full documentation in EMBEDDINGS_GUIDE.md
+See full documentation in `../guides/EMBEDDINGS.md`
 EOF
 
 echo "  ✓ ENDPOINTS.md"
@@ -258,7 +258,10 @@ echo ""
 echo "📘 Guides..."
 
 # Copy/link existing guides
-if [ -f "$WORKTREE/EMBEDDINGS_GUIDE.md" ]; then
+if [ -f "$WORKTREE/docs/guides/EMBEDDINGS.md" ]; then
+    cp "$WORKTREE/docs/guides/EMBEDDINGS.md" "$DOCS_DIR/guides/EMBEDDINGS.md"
+    echo "  ✓ EMBEDDINGS.md (from docs/guides/EMBEDDINGS.md)"
+elif [ -f "$WORKTREE/EMBEDDINGS_GUIDE.md" ]; then
     cp "$WORKTREE/EMBEDDINGS_GUIDE.md" "$DOCS_DIR/guides/EMBEDDINGS.md"
     echo "  ✓ EMBEDDINGS.md (from EMBEDDINGS_GUIDE.md)"
 fi
