@@ -9,6 +9,7 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 # SessionMiddleware lives in Starlette; import from there to avoid version issues
 from starlette.middleware.sessions import SessionMiddleware
@@ -295,6 +296,14 @@ app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytic
 
 # Mount GraphQL endpoint at /graphql for querying videos and feed
 app.mount("/graphql", graphql_api.graphql_app)
+
+# Serve uploaded videos so cdn_url=/uploads/... works in the frontend
+if settings.UPLOAD_DIR:
+    try:
+        app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+        logger.info(f"Mounted /uploads from {settings.UPLOAD_DIR}")
+    except Exception as e:
+        logger.warning(f"Failed to mount /uploads from {settings.UPLOAD_DIR}: {e}")
 
 # Global exception handler for debugging
 from fastapi.exceptions import RequestValidationError

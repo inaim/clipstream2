@@ -1,0 +1,7 @@
+Scanned 52 markdown files. Found 5 potentially broken links.
+
+docs/README.md:9 -> help/QUICK_START.md  [found_elsewhere] docs/QUICK_START.md
+docs/README.md:21 -> help/QUICK_START.md  [found_elsewhere] docs/QUICK_START.md
+docs/README.md:23 -> guides/EMBEDDINGS.md  [found_elsewhere] docs/api/EMBEDDINGS.md
+docs/README.md:100 -> help/QUICK_START.md  [found_elsewhere] docs/QUICK_START.md
+docs/README.md:103 -> guides/EMBEDDINGS.md  [found_elsewhere] docs/api/EMBEDDINGS.md

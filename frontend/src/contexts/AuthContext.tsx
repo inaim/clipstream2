@@ -146,6 +146,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Fire-and-forget server-side logout to clear cookies. Don't await so UI updates immediately.
     surreal.auth.signOut().catch((err: any) => console.warn('signOut backend failed:', err));
+
+    // Return to landing page after logout
+    try {
+      window.location.href = '/';
+    } catch {
+      // ignore if running in a non-browser env
+    }
   };
 
   return (

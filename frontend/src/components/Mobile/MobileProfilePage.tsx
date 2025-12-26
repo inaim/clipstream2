@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { User, Settings, Share2, MoreHorizontal, Grid2x2 as Grid, Heart } from 'lucide-react';
+import { User, Settings, Share2, MoreHorizontal, Grid2x2 as Grid, Heart, LogOut } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from '../Profile/EditProfileModal';
 import { SettingsPage } from '../Settings/SettingsPage';
 import type { Database } from '../../lib/database.types';
+import { useNavigate } from 'react-router-dom';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type VideoType = Database['public']['Tables']['videos']['Row'];
@@ -16,6 +17,7 @@ export function MobileProfilePage() {
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -64,7 +66,24 @@ export function MobileProfilePage() {
   if (!currentProfile) {
     return (
       <div className="h-full flex items-center justify-center bg-black">
-        <div className="text-white">Loading profile...</div>
+        <div className="text-white text-center space-y-3">
+          <div>Sign in to view your profile.</div>
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="px-3 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700"
+            >
+              Go to landing
+            </button>
+            <button
+              onClick={() => signOut()}
+              className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

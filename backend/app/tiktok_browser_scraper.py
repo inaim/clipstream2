@@ -17,12 +17,39 @@ import asyncio
 import logging
 import json
 import re
+import random
 from typing import Dict, Any, List, Optional, Set
 from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
 
 logger = logging.getLogger(__name__)
+
+# Realistic user agents for rotation
+USER_AGENTS = [
+    # Chrome on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    # Chrome on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+    # Chrome on Linux
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    # Edge on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    # Safari on macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+]
+
+# Viewport sizes for randomization
+VIEWPORTS = [
+    {'width': 1920, 'height': 1080},
+    {'width': 1366, 'height': 768},
+    {'width': 1536, 'height': 864},
+    {'width': 1440, 'height': 900},
+    {'width': 2560, 'height': 1440},
+]
 
 
 class TikTokBrowserScraper:
@@ -37,7 +64,9 @@ class TikTokBrowserScraper:
         headless: bool = True,
         max_videos: int = 50,
         scroll_delay: float = 2.0,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
+        proxy: Optional[str] = None,
+        rotate_agents: bool = True
     ):
         """
         Initialize TikTok browser scraper.
@@ -46,16 +75,22 @@ class TikTokBrowserScraper:
             headless: Run browser in headless mode
             max_videos: Maximum videos to scrape per session
             scroll_delay: Delay between scrolls (seconds)
-            user_agent: Custom user agent string
+            user_agent: Custom user agent string (if None, will rotate)
+            proxy: Proxy server URL (e.g., "http://proxy-server:port")
+            rotate_agents: Whether to rotate user agents on each request
         """
         self.headless = headless
         self.max_videos = max_videos
         self.scroll_delay = scroll_delay
-        self.user_agent = user_agent or (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
+        self.proxy = proxy
+        self.rotate_agents = rotate_agents
+
+        # User agent handling
+        if user_agent:
+            self.user_agent = user_agent
+            self.rotate_agents = False  # Don't rotate if custom UA provided
+        else:
+            self.user_agent = random.choice(USER_AGENTS) if rotate_agents else USER_AGENTS[0]
 
         self.browser: Optional[Browser] = None
         self.playwright = None
@@ -79,17 +114,34 @@ class TikTokBrowserScraper:
             return
 
         logger.info("Starting Playwright browser...")
+        if self.proxy:
+            logger.info(f"Using proxy: {self.proxy}")
+
         self.playwright = await async_playwright().start()
 
+        # Browser launch arguments for anti-detection
+        browser_args = [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process',
+        ]
+
+        # Build launch options
+        launch_options = {
+            'headless': self.headless,
+            'args': browser_args
+        }
+
+        # Add proxy if provided
+        if self.proxy:
+            launch_options['proxy'] = {
+                'server': self.proxy
+            }
+
         # Launch browser with anti-detection settings
-        self.browser = await self.playwright.chromium.launch(
-            headless=self.headless,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-            ]
-        )
+        self.browser = await self.playwright.chromium.launch(**launch_options)
 
         logger.info("Browser started successfully")
 

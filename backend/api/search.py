@@ -164,7 +164,7 @@ async def get_trending_hashtags(limit: int = 20):
             SELECT
                 name,
                 count() as videoCount,
-                sum(views) as totalViews
+                math::sum(views ?? 0) as totalViews
             FROM hashtag
             GROUP BY name
             ORDER BY totalViews DESC, videoCount DESC

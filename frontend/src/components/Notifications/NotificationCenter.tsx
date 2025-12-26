@@ -34,9 +34,18 @@ export const NotificationCenter: React.FC = () => {
   const { user } = useAuth();
 
   useEffect(() => {
+    // Skip if not authenticated
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
+
     fetchNotifications();
-    // Set up real-time notifications via WebSocket or SSE
-    const eventSource = new EventSource(`/api/v1/notifications/stream?userId=${user?.id}`);
+
+    // Set up real-time notifications via SSE
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+    const streamUrl = `${API_BASE}/api/v1/notifications/stream?userId=${user.id}`;
+    const eventSource = new EventSource(streamUrl);
     eventSource.onmessage = (event) => {
       const notification = JSON.parse(event.data);
       setNotifications((prev) => [notification, ...prev]);
@@ -48,8 +57,11 @@ export const NotificationCenter: React.FC = () => {
   }, [user?.id]);
 
   const fetchNotifications = async () => {
+    if (!user?.id) return;
+
     try {
-      const res = await fetch('/api/v1/notifications', {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/v1/notifications`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('clipstream_token')}`,
         },

@@ -85,26 +85,115 @@ echo ""
 echo "⚙️  Setting environment variables..."
 
 export INGEST_DEMO_VIDEOS=false
+export ENABLE_TIKTOK_AUTO_INGEST=true
 export ENVIRONMENT=development
 export REDIS_URL=redis://localhost:6379/0
 export ENABLE_AI_PROCESSING=true
 export ENABLE_TOKEN_REWARDS=true
 
 echo -e "${GREEN}✓${NC} Environment configured"
+echo -e "${GREEN}✓${NC} TikTok auto-ingestion ENABLED"
+
+# Check if Playwright is installed (needed for browser scraping)
+if ! python3 -c "from playwright.sync_api import sync_playwright" 2>/dev/null; then
+    echo ""
+    echo -e "${YELLOW}⚠${NC}  Playwright not installed. TikTok browser scraping requires it."
+    echo "Installing Playwright..."
+    pip install playwright
+    playwright install chromium
+fi
 
 # Start backend
 echo ""
-echo "🎬 Starting backend with real-time ML..."
+echo "🎬 Starting backend with real-time ML + TikTok Auto-Ingestion..."
 echo ""
 echo "Backend will start with:"
-echo "  - Real playable videos (13 videos)"
+echo "  - TikTok Auto-Ingestion (browser scraping every 5 minutes) 🤖"
 echo "  - Infinite scroll feed"
 echo "  - Real-time ML feedback (SSE)"
 echo "  - Event buffering"
 echo ""
+echo "📺 TikTok videos will appear in your feed automatically!"
+echo "   - Sources: #fyp, #viral, #trending, etc."
+echo "   - Scraping interval: 5 minutes"
+echo "   - Videos per cycle: 10"
+echo ""
+echo "🌐 Access your dashboard at:"
+echo "   - Backend API: http://localhost:8080"
+echo "   - Health check: http://localhost:8080/health"
+echo "   - API docs: http://localhost:8080/docs"
+echo ""
 echo "Press Ctrl+C to stop the backend"
 echo ""
 echo "=============================================="
-echo ""
+# Always use a project-local venv to avoid system pip issues
+VENV_PATH=".clipstream_venv"
+VENV_DIR="$(pwd)/${VENV_PATH}"
+SYS_PYTHON="$(command -v python3 || echo python3)"
 
-cd backend && python3 main.py
+# Helper to (re)create venv cleanly
+create_venv() {
+    rm -rf "${VENV_DIR}"
+    "${SYS_PYTHON}" -m venv "${VENV_DIR}" || {
+        echo -e "${RED}❌ Failed to create ${VENV_DIR}${NC}"
+        exit 1
+    }
+}
+
+# Create venv if missing
+if [ ! -d "${VENV_DIR}" ]; then
+    echo -e "${YELLOW}⚠${NC} ${VENV_DIR} not found; creating it..."
+    create_venv
+fi
+
+# Prefer python3 inside venv if present, otherwise fall back to python
+if [ -x "${VENV_DIR}/bin/python3" ]; then
+    PYTHON_CMD="${VENV_DIR}/bin/python3"
+elif [ -x "${VENV_DIR}/bin/python" ]; then
+    PYTHON_CMD="${VENV_DIR}/bin/python"
+else
+    PYTHON_CMD="${SYS_PYTHON}"
+fi
+PIP_CMD="${VENV_DIR}/bin/pip"
+
+# Validate pip; if broken (wrong shebang) or python missing, recreate venv
+if ! "${PIP_CMD}" --version >/dev/null 2>&1 || ! [ -x "${PYTHON_CMD}" ]; then
+    echo -e "${YELLOW}⚠${NC} Detected broken or incomplete venv at ${VENV_DIR}; recreating..."
+    create_venv
+    if [ -x "${VENV_DIR}/bin/python3" ]; then
+        PYTHON_CMD="${VENV_DIR}/bin/python3"
+    else
+        PYTHON_CMD="${VENV_DIR}/bin/python"
+    fi
+    PIP_CMD="${VENV_DIR}/bin/pip"
+fi
+
+# shellcheck source=/dev/null
+source "${VENV_DIR}/bin/activate"
+echo "Using Python: ${PYTHON_CMD} (absolute: $(realpath "${PYTHON_CMD}" 2>/dev/null || echo 'n/a'))" 
+
+# Install requirements inside the venv
+${PIP_CMD} install --upgrade pip
+${PIP_CMD} install -r backend/requirements.txt || {
+    echo -e "${RED}❌ Failed to install backend requirements${NC}"
+    exit 1
+}
+
+# Ensure python command exists in venv; recreate if not
+if ! [ -x "${PYTHON_CMD}" ]; then
+    echo -e "${YELLOW}⚠${NC} Python interpreter missing at ${PYTHON_CMD}; recreating venv..."
+    create_venv
+    if [ -x "${VENV_PATH}/bin/python3" ]; then
+        PYTHON_CMD="${VENV_PATH}/bin/python3"
+    else
+        PYTHON_CMD="${VENV_PATH}/bin/python"
+    fi
+    PIP_CMD="${VENV_PATH}/bin/pip"
+    ${PIP_CMD} install --upgrade pip
+    ${PIP_CMD} install -r backend/requirements.txt || {
+        echo -e "${RED}❌ Failed to install backend requirements${NC}"
+        exit 1
+    }
+fi
+
+cd backend && "${PYTHON_CMD}" main.py
