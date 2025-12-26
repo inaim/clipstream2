@@ -135,13 +135,26 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Demo video ingestion disabled (set INGEST_DEMO_VIDEOS=true to enable)")
 
-        # Optionally start TikTok auto-ingestion (controlled by env flag)
-        if os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "false").lower() in ("1", "true", "yes"):
+        # ============================================
+        # STEP 3.5: Start TikTok Auto-Ingestion
+        # ============================================
+        # Auto-start TikTok video scraping (enabled by default, disable with env flag)
+        enable_tiktok = os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "true").lower() in ("1", "true", "yes")
+
+        if enable_tiktok:
             try:
+                logger.info("\n[STEP 3.5] Starting TikTok auto-ingestion with browser scraping...")
                 await start_auto_ingestion()
-                logger.info("TikTok auto-ingestion service started")
+                logger.info("✅ TikTok auto-ingestion service started (browser scraping enabled)")
+                logger.info("   - Scraping trending hashtags every 5 minutes")
+                logger.info("   - Browser: Headless Chromium with infinite scroll")
+                logger.info("   - Sources: #fyp, #viral, #trending, etc.")
             except Exception as e:
-                logger.warning(f"Failed to start TikTok auto-ingestion: {e}")
+                logger.warning(f"⚠️  Failed to start TikTok auto-ingestion: {e}")
+                logger.warning("   Make sure Playwright is installed: playwright install chromium")
+        else:
+            logger.info("\n[STEP 3.5] TikTok auto-ingestion disabled")
+            logger.info("   Set ENABLE_TIKTOK_AUTO_INGEST=true to enable")
 
         # ============================================
         # STEP 4: Platform Ready
@@ -186,8 +199,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to close async SurrealDB client: {e}")
 
-    # Stop TikTok auto-ingestion if running
-    if os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "false").lower() in ("1", "true", "yes"):
+    # Stop TikTok auto-ingestion if it was started
+    enable_tiktok = os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "true").lower() in ("1", "true", "yes")
+    if enable_tiktok:
         try:
             await stop_auto_ingestion()
             logger.info("TikTok auto-ingestion service stopped")
