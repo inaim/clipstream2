@@ -15,12 +15,16 @@ Features:
 import asyncio
 import logging
 import time
+import uuid
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-import json
+import shutil
+import hashlib
+import os
 
 from app.tiktok_scraper import TikTokScraper
-from db.client import get_db
+from db.surrealdb_client import db_client
+from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -215,8 +219,8 @@ class TikTokAutoIngestion:
         # return urls
 
         # Option 3: Manual URL list (for testing)
-        # Read from a file with TikTok URLs
-        url_file = self.download_dir / "tiktok_urls.txt"
+        # Read from a file with TikTok URLs (repo-local if present)
+        url_file = Path(__file__).resolve().parent / "tiktok_urls.txt"
         if url_file.exists():
             urls = []
             with open(url_file, 'r') as f:
@@ -245,41 +249,71 @@ class TikTokAutoIngestion:
             True if ingested successfully
         """
         try:
-            db = await get_db()
-
-            # Create video record
-            video_data = {
-                "url": video_info.get("video_path", ""),
-                "title": video_info.get("title", "Unknown"),
-                "category": category,
-                "duration": video_info.get("duration", 0),
-                "creator_id": f"tiktok:{video_info.get('creator', 'unknown')}",
-                "tags": video_info.get("hashtags", []),
-                "view_count": video_info.get("view_count", 0),
-                "like_count": video_info.get("like_count", 0),
-                "comment_count": video_info.get("comment_count", 0),
-                "share_count": video_info.get("share_count", 0),
-                "description": video_info.get("description", ""),
-                "thumbnail": video_info.get("thumbnail", ""),
-                "upload_date": video_info.get("upload_date", ""),
-                "source": "tiktok",
-                "auto_ingested": True,
-                "ingested_at": time.time()
-            }
-
-            # Insert into database
-            result = await db.create("video", video_data)
-
-            if result:
-                logger.debug(f"Ingested video: {result[0]['id']}")
-                return True
-            else:
-                logger.error("Failed to insert video into database")
+            video_path = Path(video_info.get("video_path", ""))
+            if not video_path.exists():
+                logger.error(f"Video file missing: {video_path}")
                 return False
+
+            dest_path, cdn_url = self._store_in_uploads(video_path)
+
+            # Compute hash if missing
+            content_hash = video_info.get("content_hash")
+            if not content_hash:
+                content_hash = self._compute_hash(dest_path)
+
+            created = await db_client.create_video(
+                user_id="user:tiktok_auto",
+                title=video_info.get("title", "TikTok Video"),
+                cdn_url=cdn_url,
+                filename=dest_path.name,
+                content_hash=content_hash,
+                file_size=dest_path.stat().st_size,
+                status="active",
+                description=video_info.get("description", ""),
+                tags=video_info.get("hashtags", []),
+                category=category,
+                source="tiktok",
+                auto_ingested=True,
+                source_metadata={
+                    "creator": video_info.get("creator"),
+                    "creator_name": video_info.get("creator_name"),
+                    "view_count": video_info.get("view_count"),
+                    "like_count": video_info.get("like_count"),
+                    "comment_count": video_info.get("comment_count"),
+                    "share_count": video_info.get("share_count"),
+                    "upload_date": video_info.get("upload_date"),
+                }
+            )
+
+            if created:
+                logger.info(f"Ingested video {created.get('id')} ({dest_path.name})")
+                return True
+
+            logger.error("Failed to insert video into database")
+            return False
 
         except Exception as e:
             logger.error(f"Error ingesting video: {e}")
             return False
+
+    def _store_in_uploads(self, source: Path) -> (Path, str):
+        """Copy the downloaded video into the uploads directory and return (path, cdn_url)."""
+        uploads_dir = Path(settings.UPLOAD_DIR)
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        ext = source.suffix or ".mp4"
+        dest_name = f"tiktok_{uuid.uuid4().hex}{ext}"
+        dest_path = uploads_dir / dest_name
+        shutil.copy(source, dest_path)
+        cdn_url = f"/uploads/{dest_name}"
+        return dest_path, cdn_url
+
+    def _compute_hash(self, file_path: Path) -> str:
+        """Compute SHA256 hash for a file."""
+        h = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
 
     def get_stats(self) -> Dict[str, Any]:
         """Get ingestion statistics."""
