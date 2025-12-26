@@ -4,9 +4,10 @@ import { useLanguage } from '../../contexts/LanguageContext';
 interface MobileNavigationProps {
   currentTab: 'home' | 'search' | 'upload' | 'inbox' | 'profile';
   onTabChange: (tab: 'home' | 'search' | 'upload' | 'inbox' | 'profile') => void;
+  inboxUnread?: number;
 }
 
-export function MobileNavigation({ currentTab, onTabChange }: MobileNavigationProps) {
+export function MobileNavigation({ currentTab, onTabChange, inboxUnread = 0 }: MobileNavigationProps) {
   const { t } = useLanguage();
 
   return (
@@ -62,7 +63,7 @@ export function MobileNavigation({ currentTab, onTabChange }: MobileNavigationPr
 
         <button
           onClick={() => onTabChange('inbox')}
-          className="flex flex-col items-center justify-center flex-1 h-full active:scale-95 transition"
+          className="flex flex-col items-center justify-center flex-1 h-full active:scale-95 transition relative"
         >
           <MessageSquare
             className={`w-7 h-7 mb-1 transition ${
@@ -76,6 +77,13 @@ export function MobileNavigation({ currentTab, onTabChange }: MobileNavigationPr
           >
             {t('nav.inbox')}
           </span>
+
+          {/* inbox badge */}
+          {inboxUnread > 0 && (
+            <span className="absolute -top-1 right-6 min-w-[1rem] h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-semibold px-1">
+              {inboxUnread > 9 ? '9+' : inboxUnread}
+            </span>
+          )}
         </button>
 
         <button
