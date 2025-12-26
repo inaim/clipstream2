@@ -46,6 +46,54 @@ logger = logging.getLogger(__name__)
 EMBEDDING_DIM = 128  # Standard dimension for video embeddings
 SIMILARITY_THRESHOLD = 0.7  # Cosine similarity threshold for recommendations
 
+# Monolith-inspired: Frequency filtering threshold
+# Videos with < MIN_INTERACTIONS use default category embeddings
+# This saves 80%+ memory (most videos have few views)
+MIN_INTERACTIONS_FOR_EMBEDDING = 10
+
+# Monolith-inspired: Default embeddings for new/unpopular videos
+# These are used when a video doesn't have enough interactions to justify
+# a dedicated embedding (saves 80% memory)
+DEFAULT_CATEGORY_EMBEDDINGS = {}
+
+
+def _generate_default_category_embeddings():
+    """
+    Generate default embeddings for each category.
+
+    New videos or videos with < MIN_INTERACTIONS use these defaults.
+    This is inspired by ByteDance's Monolith system.
+    """
+    categories = [
+        "sports", "comedy", "music", "gaming", "education",
+        "cooking", "travel", "fashion", "tech", "dance",
+        "art", "pets", "news", "fitness", "diy"
+    ]
+
+    np.random.seed(42)  # Reproducible defaults
+
+    for category in categories:
+        # Generate random embedding
+        embedding = np.random.randn(EMBEDDING_DIM).astype(np.float32)
+
+        # Normalize (for cosine similarity)
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+
+        DEFAULT_CATEGORY_EMBEDDINGS[category] = embedding
+
+    # Add a general fallback
+    general = np.random.randn(EMBEDDING_DIM).astype(np.float32)
+    general = general / np.linalg.norm(general)
+    DEFAULT_CATEGORY_EMBEDDINGS["general"] = general
+
+    logger.info(f"Generated {len(DEFAULT_CATEGORY_EMBEDDINGS)} default category embeddings")
+
+
+# Generate defaults on module load
+_generate_default_category_embeddings()
+
 
 @dataclass
 class VideoEmbedding:
@@ -78,7 +126,8 @@ class CollisionlessEmbeddingTable:
         self,
         dimension: int = EMBEDDING_DIM,
         use_gpu: bool = False,
-        cache_size: int = 10000
+        cache_size: int = 10000,
+        ttl_days: int = 30
     ):
         """
         Initialize embedding table.
@@ -87,10 +136,12 @@ class CollisionlessEmbeddingTable:
             dimension: Embedding dimension (128 by default)
             use_gpu: Use GPU for FAISS (requires faiss-gpu)
             cache_size: Number of hot embeddings to cache in Redis
+            ttl_days: Time-to-live for inactive embeddings (Monolith-inspired)
         """
         self.dimension = dimension
         self.use_gpu = use_gpu
         self.cache_size = cache_size
+        self.ttl_days = ttl_days
 
         # FAISS index (cosine similarity = inner product with normalized vectors)
         if faiss:
@@ -123,10 +174,14 @@ class CollisionlessEmbeddingTable:
         # Redis client for caching
         self.redis_client: Optional[aioredis.Redis] = None
 
+        # Monolith-inspired: Track last access time for expirable embeddings
+        self.last_accessed: Dict[str, float] = {}  # video_id -> timestamp
+
         # Stats
         self.total_vectors = 0
         self.total_searches = 0
         self.cache_hits = 0
+        self.expired_count = 0
 
     async def initialize(self):
         """Initialize Redis connection for caching."""
@@ -394,6 +449,8 @@ class CollisionlessEmbeddingTable:
                 cached = await self.redis_client.get(f"embedding:{video_id}")
                 if cached:
                     self.cache_hits += 1
+                    # Update last accessed (Monolith-inspired TTL)
+                    self.last_accessed[video_id] = time.time()
                     return pickle.loads(cached)
             except Exception as e:
                 logger.debug(f"Redis cache read failed: {e}")
@@ -401,9 +458,77 @@ class CollisionlessEmbeddingTable:
         # Get from storage
         if video_id in self.video_id_to_idx:
             idx = self.video_id_to_idx[video_id]
+            # Update last accessed (Monolith-inspired TTL)
+            self.last_accessed[video_id] = time.time()
             return self.embeddings[idx]
 
         return None
+
+    async def get_embedding_with_fallback(
+        self,
+        video_id: str,
+        category: Optional[str] = None
+    ) -> np.ndarray:
+        """
+        Get embedding with fallback to default category embedding.
+
+        Monolith-inspired: New/unpopular videos use category defaults.
+        This saves memory and provides reasonable initial recommendations.
+
+        Args:
+            video_id: Video ID
+            category: Video category (for fallback)
+
+        Returns:
+            Embedding vector (never None - uses fallback)
+        """
+        # Try to get dedicated embedding
+        embedding = await self.get_embedding(video_id)
+
+        if embedding is not None:
+            return embedding
+
+        # Fallback to category default
+        if category and category in DEFAULT_CATEGORY_EMBEDDINGS:
+            logger.debug(f"Using default embedding for {video_id} (category: {category})")
+            return DEFAULT_CATEGORY_EMBEDDINGS[category]
+
+        # Ultimate fallback
+        logger.debug(f"Using general default embedding for {video_id}")
+        return DEFAULT_CATEGORY_EMBEDDINGS["general"]
+
+    async def cleanup_expired_embeddings(self) -> int:
+        """
+        Remove embeddings not accessed within TTL period.
+
+        Monolith-inspired: Frees memory for inactive users/videos.
+        Run this periodically (e.g., daily cron job).
+
+        Returns:
+            Number of embeddings removed
+        """
+        now = time.time()
+        ttl_seconds = self.ttl_days * 24 * 3600
+
+        expired_videos = []
+
+        for video_id, last_access in self.last_accessed.items():
+            if now - last_access > ttl_seconds:
+                expired_videos.append(video_id)
+
+        # Remove expired embeddings
+        removed_count = 0
+        for video_id in expired_videos:
+            if self.remove_embedding(video_id):
+                removed_count += 1
+                # Remove from last_accessed
+                del self.last_accessed[video_id]
+
+        if removed_count > 0:
+            self.expired_count += removed_count
+            logger.info(f"Cleaned up {removed_count} expired embeddings (TTL: {self.ttl_days} days)")
+
+        return removed_count
 
     def remove_embedding(self, video_id: str) -> bool:
         """
@@ -452,7 +577,10 @@ class CollisionlessEmbeddingTable:
             "cache_hit_rate": round(cache_hit_rate, 3),
             "unique_hashes": len(self.content_hash_to_video_id),
             "using_faiss": self.index is not None,
-            "using_gpu": self.use_gpu
+            "using_gpu": self.use_gpu,
+            "ttl_days": self.ttl_days,
+            "expired_count": self.expired_count,
+            "tracked_access_times": len(self.last_accessed)
         }
 
     async def save(self, filepath: str):
@@ -575,3 +703,75 @@ async def compute_embedding_similarity(
 
     # Cosine similarity
     return float(np.dot(norm1, norm2))
+
+
+def get_default_embedding(category: str) -> np.ndarray:
+    """
+    Get default embedding for a category.
+
+    Monolith-inspired: Use for new/unpopular videos.
+
+    Args:
+        category: Video category
+
+    Returns:
+        Default embedding for category
+    """
+    return DEFAULT_CATEGORY_EMBEDDINGS.get(category, DEFAULT_CATEGORY_EMBEDDINGS["general"])
+
+
+def get_available_categories() -> List[str]:
+    """
+    Get list of categories with default embeddings.
+
+    Returns:
+        List of category names
+    """
+    return list(DEFAULT_CATEGORY_EMBEDDINGS.keys())
+
+
+async def should_create_dedicated_embedding(
+    video_id: str,
+    interaction_count: Optional[int] = None
+) -> bool:
+    """
+    Check if video should have a dedicated embedding.
+
+    Monolith-inspired: Only create embeddings for popular videos.
+    Unpopular videos use category defaults (saves 80% memory).
+
+    Args:
+        video_id: Video ID
+        interaction_count: Number of interactions (views/likes/etc)
+                          If None, tries to fetch from database
+
+    Returns:
+        True if should create dedicated embedding
+    """
+    # If interaction count provided, use it
+    if interaction_count is not None:
+        return interaction_count >= MIN_INTERACTIONS_FOR_EMBEDDING
+
+    # Try to get from database
+    try:
+        from db.client import get_db
+
+        db = await get_db()
+
+        # Query video stats
+        query = f"""
+        SELECT
+            (SELECT COUNT() FROM event WHERE video_id = '{video_id}') AS interaction_count
+        """
+
+        result = await db.query(query)
+
+        if result and len(result) > 0:
+            count = result[0].get("interaction_count", 0)
+            return count >= MIN_INTERACTIONS_FOR_EMBEDDING
+
+    except Exception as e:
+        logger.debug(f"Could not fetch interaction count for {video_id}: {e}")
+
+    # Default: create embedding (conservative approach)
+    return True

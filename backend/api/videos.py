@@ -31,10 +31,26 @@ async def _sse_event_generator(channel: str):
 
     redis = redis_client(settings.REDIS_URL)
     pubsub = redis.pubsub()
-    await pubsub.subscribe(channel)
+    try:
+        await pubsub.subscribe(channel)
+    except Exception as e:
+        # Surface a single error frame then end the stream
+        yield f"data: {{\"error\": \"redis_subscribe_failed\", \"detail\": \"{str(e)}\"}}\n\n"
+        try:
+            await redis.close()
+        except Exception:
+            pass
+        return
+
     try:
         while True:
-            msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=10)
+            try:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=10)
+            except Exception as e:
+                # Connection dropped; emit error and break to avoid crashing the request
+                yield f"data: {{\"error\": \"redis_connection_reset\", \"detail\": \"{str(e)}\"}}\n\n"
+                break
+
             if msg is None:
                 # keep-alive comment
                 yield ":\n\n"

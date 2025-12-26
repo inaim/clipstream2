@@ -1,50 +1,129 @@
-# 📚 ClipStream Documentation Hub
+# 📚 Clipstream Documentation
 
-Use this page as the single index for every doc. Files are grouped by topic and recency; “Canonical” means the latest source of truth. Older/historical docs are listed separately so we don’t lose context but avoid conflicts.
+Complete documentation for the Clipstream TikTok-style video platform.
 
-## 🚀 Start Here (Canonical)
-- `START_HERE.md` — Platform overview and quick orientation
-- `QUICK_START.md` — Fast local setup
-- `COMPLETE_SYSTEM_SUMMARY.md` — High-level summary of every subsystem
+---
 
-## 🎯 TikTok Mode / Real-Time Feed (Canonical)
-- `START_HERE_TIKTOK.md` — TikTok-style runbook, feature flags, and data flow
-- `TIKTOK_COMPLETE_SUMMARY.md` — End-to-end status for TikTok mode
-- `TIKTOK_REALTIME_GUIDE.md` — Real-time feed, SSE, and event logging
-- `REAL_VIDEOS_READY.md` — Notes on curated demo/real video datasets
+## 🚀 Quick Start
 
-## 🏗️ Architecture & Implementation (Canonical)
-- `ARCHITECTURE.md` — System diagrams and data flows
-- `EMBEDDINGS_GUIDE.md` — Embedding generation and retrieval
-- `BACKEND_FRONTEND_INTEGRATION.md` — API contracts (REST/GraphQL) for clients
-- `IMPLEMENTATION_SUMMARY.md` — Current implementation snapshot and open work
+**Start here:** [`help/QUICK_START.md`](help/QUICK_START.md)
 
-## 🛠️ Backend
-- `BACKEND_API_DOCUMENTATION.md` — Endpoint reference
-- `BACKEND_FIXES_COMPLETE.md` — Migration/health checklist
-- `BACKEND_FRONTEND_INTEGRATION.md` — (also relevant to frontend clients)
+One command to get everything running:
+```bash
+bash START_TIKTOK_PLATFORM.sh
+```
 
-## 🖥️ Frontend & Mobile
-- `FRONTEND_IMPROVEMENTS.md` — UI/UX improvements
-- `FRONTEND_MOBILE_API_GUIDE.md` — Client API usage and examples
-- `MOBILE_READY.md` — Mobile UX/performance criteria
-- `MOBILE_APPS_COMPLETE.md` — Native mobile build/release steps
+---
 
-## 🚢 Deployment
-- `PRODUCTION_DEPLOYMENT.md` — Primary production rollout guide
-- `CLOUD_RUN_DEPLOYMENT.md` — Google Cloud Run-specific playbook
+## 📖 Documentation Structure
 
-## ✅ Testing & Quality
-- `TESTING_GUIDE.md` — Manual and automated test plans
+### 🎯 Help & Guides
+- [`help/QUICK_START.md`](help/QUICK_START.md) - Get started in 5 minutes
+- [`help/TESTING.md`](help/TESTING.md) - Testing guide for all features
+- [`guides/EMBEDDINGS.md`](guides/EMBEDDINGS.md) - Collision-less embeddings
+- [`guides/TIKTOK_INGESTION.md`](guides/TIKTOK_INGESTION.md) - TikTok video scraping
+- [`guides/REALTIME_ML.md`](guides/REALTIME_ML.md) - Real-time ML feedback
 
-## 🧭 Historical / Reference (keep for context; superseded by canonical docs above)
-- `Paragraph_article.md` — Narrative overview of the CDN/IPFS hybrid demo
-- `SCOPING_BETA.md` — Early MVP/beta scope and KPIs
-- `SUPABASE_TO_SURREALDB_MIGRATION.md` — Supabase → SurrealDB migration record
-- `FINAL_SUMMARY.md`, `FINAL_COMPLETE.md`, `READY_TO_PUSH.md` — Snapshot summaries (use canonical docs for current state)
-- `CONTRIBUTING.md` — Contributor guidelines (unchanged, still valid)
+### 🏗️ Architecture
+- [`architecture/OVERVIEW.md`](architecture/OVERVIEW.md) - System architecture
+- [`architecture/ML_ALGORITHM.md`](architecture/ML_ALGORITHM.md) - ML ranking algorithm
+- [`architecture/DATABASE_SCHEMA.md`](architecture/DATABASE_SCHEMA.md) - Database design
+- [`architecture/SCALING.md`](architecture/SCALING.md) - Scaling to TikTok level
 
-## Notes on conflicts and freshness
-- Prefer the “Canonical” docs above when in doubt.
-- If a historical doc conflicts with a canonical one, treat the canonical version as authoritative and update the historical doc with a short note rather than editing both.
-- Add new topics here when you create them so the index stays the single source of truth.
+### 🔌 API Reference
+- [`api/ENDPOINTS.md`](api/ENDPOINTS.md) - All API endpoints
+- [`api/INFINITE_FEED.md`](api/INFINITE_FEED.md) - Infinite scroll API
+- [`api/REALTIME_EVENTS.md`](api/REALTIME_EVENTS.md) - SSE & event streaming
+- [`api/EMBEDDINGS.md`](api/EMBEDDINGS.md) - Embedding similarity API
+
+---
+
+## 🎯 Common Tasks
+
+### For Developers
+```bash
+# Start development environment
+bash START_TIKTOK_PLATFORM.sh
+
+# Run tests
+bash TEST_NOW.sh
+
+# Generate embeddings
+curl -X POST "http://localhost:8080/api/v1/embeddings/generate-dummy?count=1000"
+```
+
+### For Testing
+```bash
+# Test swipe interface
+open http://localhost:8000/frontend_tiktok_swipe.html
+
+# Test ML personalization
+see docs/help/TESTING.md
+
+# Check system health
+curl http://localhost:8080/api/v1/embeddings/stats
+```
+
+### For Deployment
+```bash
+# See architecture/SCALING.md for production deployment
+# See guides/TIKTOK_INGESTION.md for real video ingestion
+```
+
+---
+
+## 🤖 RAG Knowledge Base
+
+This documentation is optimized for RAG (Retrieval-Augmented Generation) chatbots.
+
+**Vector Database Schema:**
+```json
+{
+  "doc_id": "quick_start",
+  "category": "help",
+  "title": "Quick Start Guide",
+  "content": "...",
+  "keywords": ["setup", "install", "start", "quick"],
+  "embedding": [0.123, 0.456, ...]
+}
+```
+
+**See:** [`RAG_INDEX.json`](RAG_INDEX.json) for full searchable index.
+
+---
+
+## 📊 Feature Overview
+
+| Feature | Status | Documentation |
+|---------|--------|---------------|
+| TikTok Video Scraper | ✅ | [`guides/TIKTOK_INGESTION.md`](guides/TIKTOK_INGESTION.md) |
+| Swipe Interface | ✅ | [`help/QUICK_START.md`](help/QUICK_START.md) |
+| Real-time ML | ✅ | [`guides/REALTIME_ML.md`](guides/REALTIME_ML.md) |
+| Infinite Scroll | ✅ | [`api/INFINITE_FEED.md`](api/INFINITE_FEED.md) |
+| Collision-less Embeddings | ✅ | [`guides/EMBEDDINGS.md`](guides/EMBEDDINGS.md) |
+| Event Buffering | ✅ | [`architecture/SCALING.md`](architecture/SCALING.md) |
+
+---
+
+## 🆘 Troubleshooting
+
+See [`help/TROUBLESHOOTING.md`](help/TROUBLESHOOTING.md) for common issues.
+
+**Quick fixes:**
+- Redis not running? `docker-compose up -d redis`
+- Videos not loading? Check `backend/.env.production`
+- SSE not working? Check CORS settings
+
+---
+
+## 📞 Support
+
+- **Issues:** See troubleshooting guide
+- **Questions:** Check API reference
+- **Chatbot:** Use RAG_INDEX.json for context-aware help
+
+---
+
+**Last Updated:** 2024-12-25
+**Version:** 1.0.0
+**Platform:** Clipstream TikTok-style Video Platform

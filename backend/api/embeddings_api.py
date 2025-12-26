@@ -18,7 +18,12 @@ from app.embeddings import (
     get_embedding_table,
     generate_dummy_embedding,
     compute_embedding_similarity,
-    EMBEDDING_DIM
+    get_default_embedding,
+    get_available_categories,
+    should_create_dedicated_embedding,
+    EMBEDDING_DIM,
+    DEFAULT_CATEGORY_EMBEDDINGS,
+    MIN_INTERACTIONS_FOR_EMBEDDING
 )
 
 logger = logging.getLogger(__name__)
@@ -481,4 +486,131 @@ async def compute_pairwise_similarity(
         raise
     except Exception as e:
         logger.error(f"Error computing similarity: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DEFAULT CATEGORY EMBEDDINGS (Monolith-inspired)
+# ============================================================================
+
+@router.get("/categories")
+async def get_categories():
+    """
+    Get list of available categories with default embeddings.
+
+    Monolith-inspired: New/unpopular videos use category defaults.
+
+    Returns:
+        List of category names
+    """
+    try:
+        categories = get_available_categories()
+
+        return {
+            "success": True,
+            "categories": categories,
+            "total": len(categories),
+            "message": "These categories have pre-computed default embeddings"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting categories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/default/{category}")
+async def get_category_default_embedding(category: str):
+    """
+    Get default embedding for a category.
+
+    Monolith-inspired: Used for new videos without dedicated embeddings.
+
+    Args:
+        category: Category name
+
+    Returns:
+        Default embedding for category
+    """
+    try:
+        embedding = get_default_embedding(category)
+
+        return {
+            "success": True,
+            "category": category,
+            "embedding": embedding.tolist(),
+            "dimension": len(embedding),
+            "message": f"Default embedding for {category} category"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting default embedding: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/should-create/{video_id}")
+async def check_should_create_embedding(
+    video_id: str,
+    interaction_count: Optional[int] = Query(None)
+):
+    """
+    Check if video should have dedicated embedding.
+
+    Monolith-inspired: Frequency filtering to save memory.
+    Videos with < MIN_INTERACTIONS use category defaults.
+
+    Args:
+        video_id: Video ID
+        interaction_count: Optional interaction count (views/likes)
+
+    Returns:
+        Whether to create dedicated embedding
+    """
+    try:
+        should_create = await should_create_dedicated_embedding(
+            video_id,
+            interaction_count
+        )
+
+        return {
+            "success": True,
+            "video_id": video_id,
+            "should_create_embedding": should_create,
+            "min_interactions_threshold": MIN_INTERACTIONS_FOR_EMBEDDING,
+            "interaction_count": interaction_count,
+            "message": (
+                f"Create dedicated embedding for {video_id}"
+                if should_create
+                else f"Use default category embedding for {video_id}"
+            )
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking should create embedding: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cleanup-expired")
+async def cleanup_expired_embeddings():
+    """
+    Remove expired embeddings (not accessed within TTL).
+
+    Monolith-inspired: Frees memory for inactive videos.
+    Run this periodically (e.g., daily cron job).
+
+    Returns:
+        Number of embeddings removed
+    """
+    try:
+        table = await get_embedding_table()
+        removed_count = await table.cleanup_expired_embeddings()
+
+        return {
+            "success": True,
+            "removed_count": removed_count,
+            "ttl_days": table.ttl_days,
+            "message": f"Cleaned up {removed_count} expired embeddings"
+        }
+
+    except Exception as e:
+        logger.error(f"Error cleaning up expired embeddings: {e}")
         raise HTTPException(status_code=500, detail=str(e))

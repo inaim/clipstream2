@@ -18,10 +18,6 @@ fi
 
 echo -e "${GREEN}✓${NC} Docker is running"
 
-# Ports (override here if you mapped differently)
-SURREAL_PORT=${SURREAL_PORT:-8003}
-REDIS_PORT=${REDIS_PORT:-6379}
-
 # Start SurrealDB and Redis
 echo ""
 echo "🐳 Starting SurrealDB and Redis..."
@@ -33,15 +29,15 @@ echo "⏳ Waiting for services to be ready..."
 sleep 3
 
 # Check SurrealDB
-if curl -s http://localhost:${SURREAL_PORT}/health > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} SurrealDB is ready on port ${SURREAL_PORT}"
+if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} SurrealDB is ready on port 8000"
 else
     echo -e "${YELLOW}⚠${NC}  SurrealDB might not be ready yet (continuing anyway)"
 fi
 
 # Check Redis
-if redis-cli -p ${REDIS_PORT} ping > /dev/null 2>&1; then
-    echo -e "${GREEN}✓${NC} Redis is ready on port ${REDIS_PORT}"
+if redis-cli ping > /dev/null 2>&1; then
+    echo -e "${GREEN}✓${NC} Redis is ready on port 6379"
 else
     echo -e "${RED}❌ Redis is not responding${NC}"
     echo "Trying to start Redis manually..."
@@ -60,20 +56,19 @@ else
     pip install yt-dlp
 fi
 
-# Set environment variables (match local container port mappings)
+# Set environment variables
 echo ""
 echo "⚙️  Setting environment variables..."
 
 export INGEST_DEMO_VIDEOS=false
 export ENVIRONMENT=development
-export REDIS_URL=redis://localhost:${REDIS_PORT}/0
+export REDIS_URL=redis://localhost:6379/0
 export ENABLE_AI_PROCESSING=true
 export ENABLE_TOKEN_REWARDS=true
-export SURREALDB_URL=ws://localhost:${SURREAL_PORT}/rpc
 
 echo -e "${GREEN}✓${NC} Environment configured"
 
-# Start backend using the local virtualenv inside backend/
+# Start backend
 echo ""
 echo "🎬 Starting backend with real-time ML..."
 echo ""
@@ -88,25 +83,4 @@ echo ""
 echo "=============================================="
 echo ""
 
-# Activate virtualenv (prefer backend/.clipstream_venv, fall back to project .clipstream_venv)
-if [ -f "backend/.clipstream_venv/bin/activate" ]; then
-    source backend/.clipstream_venv/bin/activate
-elif [ -f ".clipstream_venv/bin/activate" ]; then
-    source .clipstream_venv/bin/activate
-elif [ -f "backend/venv/bin/activate" ]; then
-    source backend/venv/bin/activate
-else
-    echo -e "${YELLOW}⚠${NC} No virtualenv found; using system Python."
-fi
-
-# Ensure itsdangerous is available (needed by SessionMiddleware)
-python - <<'PYCODE' || pip install itsdangerous
-import importlib
-import sys
-try:
-    importlib.import_module("itsdangerous")
-except ImportError:
-    sys.exit(1)
-PYCODE
-
-cd backend && ../.clipstream_venv/bin/python3 main.py
+cd backend && python3 main.py

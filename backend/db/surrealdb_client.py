@@ -106,6 +106,33 @@ class SurrealDBClient:
             "watch_tokens_pending": 0
         })
         return result if result else None
+
+    async def query(self, sql: str, params: Optional[Dict] = None):
+        """Thin wrapper so callers don't reach into db_client.db directly."""
+        if self._connected and self.db:
+            return await self.db.query(sql, params or {})
+        # Fallback: create a short-lived client if connect() wasn't called (dev-only)
+        try:
+            tmp = AsyncSurreal(settings.SURREALDB_URL)
+            await tmp.connect()
+            if settings.ENVIRONMENT == "production":
+                await tmp.signin({
+                    "username": settings.SURREALDB_USER,
+                    "password": settings.SURREALDB_PASS,
+                    "namespace": settings.SURREALDB_NS
+                })
+            else:
+                await tmp.signin({
+                    "username": settings.SURREALDB_USER,
+                    "password": settings.SURREALDB_PASS,
+                })
+            await tmp.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
+            return await tmp.query(sql, params or {})
+        finally:
+            try:
+                await tmp.close()
+            except Exception:
+                pass
     
     async def get_user_by_email(self, email: str) -> Optional[Dict]:
         try:

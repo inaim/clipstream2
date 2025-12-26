@@ -1,491 +1,450 @@
-# Clipstream Testing Guide - ML Algorithm Validation
+# 🧪 ClipStream Testing Guide
 
-## Overview
-
-This guide shows you how to test the ML recommendation algorithm with **real playable videos** and multiple users with different interaction patterns.
-
-You'll be able to:
-- ✅ Play actual videos in the platform
-- ✅ Test with multiple users (interested, not interested, uncertain)
-- ✅ See the ML algorithm adapt in real-time
-- ✅ Verify personalization works
+Complete guide for testing the ClipStream backend and frontend.
 
 ---
 
-## Quick Start - Testing with Playable Videos
+## 🚀 Quick Start
 
-### Option 1: Use Public Demo Videos (Recommended for Testing)
-
-The easiest way to test is with publicly available demo videos that work in browsers:
+### Test Backend Connection
 
 ```bash
-# 1. Start the backend
-cd backend
-python3 main.py
+# From project root
+./run-test.sh
 
-# 2. Create test videos with public CDN URLs
-curl -X POST http://localhost:8080/api/v1/feed/debug/seed-video \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Sports Highlight",
-    "user_id": "user:system",
-    "cdn_url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
-  }'
+# OR manually
+python3 test/test_backend_connection.py
 ```
 
-### Option 2: Download TikTok Videos (Production-Ready)
+This will test:
+1. ✅ SurrealDB connection
+2. ✅ Authentication
+3. ✅ Query execution
+4. ✅ Backend db_client
 
-To test with real TikTok videos:
+---
+
+## 🔧 Setup for Testing
+
+### 1. Install Backend Dependencies
 
 ```bash
-# 1. Install yt-dlp
-pip install yt-dlp
+cd backend
 
-# 2. Create a test script
-cat > test_tiktok_ingestion.py << 'EOF'
+# Create virtual environment (if not exists)
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # On macOS/Linux
+# OR
+venv\Scripts\activate  # On Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment Variables
+
+Make sure `backend/.env` exists with:
+
+```bash
+# SurrealDB Cloud
+SURREALDB_URL=wss://ancient-valley-06cu6ilhgptbp4ttr1a04b77oc.aws-euw1.surreal.cloud
+SURREALDB_USER=root
+SURREALDB_PASS=your-password
+SURREALDB_NS=clipstream
+SURREALDB_DB=production
+
+# Application
+SECRET_KEY=your-secret-key-min-32-chars
+APP_ENV=development
+
+# URLs
+BACKEND_BASE_URL=http://localhost:8080
+FRONTEND_BASE_URL=http://localhost:5173
+```
+
+---
+
+## 🧪 Running Tests
+
+### Backend Connection Test
+
+```bash
+# Run the test script
+./run-test.sh
+
+# Expected output:
+# ✅ Successfully imported settings
+# ✅ Successfully imported Surreal
+# ✅ Connection initialized
+# ✅ Namespace and database selected
+# ✅ Successfully signed in
+# ✅ Query successful
+# ✅ ALL TESTS PASSED!
+```
+
+### Manual Backend Test
+
+```bash
+cd backend
+source venv/bin/activate
+python3 main.py
+```
+
+Then in another terminal:
+
+```bash
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Expected response:
+# {"status":"healthy","surrealdb":"connected"}
+
+# Test root endpoint
+curl http://localhost:8080/
+
+# Test API docs
+open http://localhost:8080/docs
+```
+
+### Frontend Test
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Open browser
+open http://localhost:5173
+```
+
+---
+
+## 📋 Test Checklist
+
+### Backend Tests
+
+- [ ] **Connection Test**
+  ```bash
+  ./run-test.sh
+  ```
+
+- [ ] **Health Check**
+  ```bash
+  curl http://localhost:8080/health
+  ```
+
+- [ ] **API Documentation**
+  ```bash
+  open http://localhost:8080/docs
+  ```
+
+- [ ] **User Registration**
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@example.com","password":"test123","display_name":"Test User"}'
+  ```
+
+- [ ] **User Login**
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@example.com","password":"test123"}'
+  ```
+
+- [ ] **Get User Profile** (requires token from login)
+  ```bash
+  curl http://localhost:8080/api/v1/users/user:123 \
+    -H "Authorization: Bearer YOUR_TOKEN"
+  ```
+
+### Frontend Tests
+
+- [ ] **Build Test**
+  ```bash
+  cd frontend
+  npm run build
+  ```
+
+- [ ] **Type Check**
+  ```bash
+  cd frontend
+  npm run typecheck
+  ```
+
+- [ ] **Lint Check**
+  ```bash
+  cd frontend
+  npm run lint
+  ```
+
+### Integration Tests
+
+- [ ] **Login Flow**
+  1. Start backend: `cd backend && python3 main.py`
+  2. Start frontend: `cd frontend && npm run dev`
+  3. Open http://localhost:5173
+  4. Click "Sign Up" or "Log In"
+  5. Enter credentials
+  6. Verify redirect to dashboard
+
+- [ ] **Video Upload**
+  1. Login to application
+  2. Click upload button
+  3. Select video file
+  4. Enter title
+  5. Submit
+  6. Verify video appears in feed
+
+- [ ] **Social Features**
+  1. Like a video
+  2. Follow a user
+  3. Post a comment
+  4. Verify counts update
+
+---
+
+## 🐛 Troubleshooting
+
+### "ModuleNotFoundError: No module named 'utils'"
+
+**Problem**: Python can't find backend modules
+
+**Solution**: The test script should handle this automatically, but if you're running Python directly:
+
+```python
+import sys
+from pathlib import Path
+
+# Add backend to path
+backend_dir = Path(__file__).resolve().parent.parent / "backend"
+sys.path.insert(0, str(backend_dir))
+
+# Now import
+from utils.config import settings
+```
+
+### "ModuleNotFoundError: No module named 'surrealdb'"
+
+**Problem**: SurrealDB package not installed
+
+**Solution**:
+```bash
+cd backend
+source venv/bin/activate
+pip install surrealdb
+```
+
+### "Connection refused" or "Connection failed"
+
+**Problem**: Can't connect to SurrealDB Cloud
+
+**Solutions**:
+1. Check internet connection
+2. Verify SURREALDB_URL is correct
+3. Check credentials (user/pass)
+4. Verify namespace and database exist
+
+### "CORS error" in browser
+
+**Problem**: Frontend can't connect to backend
+
+**Solution**: Check CORS configuration in `backend/main.py`:
+```python
+allow_origins=settings.ALLOWED_ORIGINS + [
+    "http://localhost:5173",
+    "http://localhost:3000"
+]
+```
+
+### "401 Unauthorized"
+
+**Problem**: Missing or invalid auth token
+
+**Solution**:
+1. Login first to get token
+2. Check token is stored in localStorage
+3. Verify token is sent in Authorization header
+
+---
+
+## 📊 Test Coverage
+
+### Backend Endpoints
+
+| Endpoint | Method | Test Status |
+|----------|--------|-------------|
+| `/health` | GET | ✅ Automated |
+| `/` | GET | ✅ Automated |
+| `/api/v1/auth/register` | POST | ⚠️ Manual |
+| `/api/v1/auth/login` | POST | ⚠️ Manual |
+| `/api/v1/users/{id}` | GET | ⚠️ Manual |
+| `/api/upload` | POST | ⚠️ Manual |
+| `/api/videos` | GET | ⚠️ Manual |
+| `/api/likes` | POST/DELETE | ⚠️ Manual |
+| `/api/follows` | POST/DELETE | ⚠️ Manual |
+| `/api/comments` | GET/POST | ⚠️ Manual |
+
+### Frontend Components
+
+| Component | Test Status |
+|-----------|-------------|
+| Authentication | ⚠️ Manual |
+| Profile Page | ⚠️ Manual |
+| Video Feed | ⚠️ Manual |
+| Video Upload | ⚠️ Manual |
+| Comments | ⚠️ Manual |
+| Likes/Follows | ⚠️ Manual |
+
+---
+
+## 🔄 Continuous Testing
+
+### Watch Mode (Backend)
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Run with auto-reload
+python3 main.py
+# Server will restart on file changes
+```
+
+### Watch Mode (Frontend)
+
+```bash
+cd frontend
+
+# Dev server with hot reload
+npm run dev
+# Browser will auto-refresh on changes
+```
+
+---
+
+## 📝 Writing New Tests
+
+### Backend Test Template
+
+```python
+import sys
+from pathlib import Path
+
+# Setup path
+backend_dir = Path(__file__).resolve().parent.parent / "backend"
+sys.path.insert(0, str(backend_dir))
+
 import asyncio
-from app.tiktok_scraper import download_and_prepare_tiktok_videos
-from app.ingestion_engine import ingest_initial_videos
+from utils.config import settings
 from db.surrealdb_client import db_client
 
-async def ingest_tiktok_videos():
-    # Connect to database
-    await db_client.connect()
-    async_db = getattr(db_client, "async_db")
-
-    # TikTok URLs to download
-    tiktok_urls = [
-        "https://www.tiktok.com/@nike/video/7305827482847587630",
-        "https://www.tiktok.com/@gordonramsayofficial/video/7305827383847587630",
-        "https://www.tiktok.com/@natgeo/video/7305827282847587630",
-    ]
-
-    # Download and prepare
-    from app.tiktok_scraper import download_and_prepare_tiktok_videos
-    videos = await download_and_prepare_tiktok_videos(tiktok_urls)
-
-    # Ingest into database
-    result = await ingest_initial_videos(async_db, videos)
-    print(f"Ingested {result['ingested']} TikTok videos")
+async def test_my_feature():
+    """Test description"""
+    try:
+        await db_client.connect()
+        
+        # Your test code here
+        result = await db_client.some_method()
+        
+        assert result is not None, "Result should not be None"
+        print("✅ Test passed")
+        
+        await db_client.disconnect()
+        return True
+    except Exception as e:
+        print(f"❌ Test failed: {e}")
+        return False
 
 if __name__ == "__main__":
-    asyncio.run(ingest_tiktok_videos())
-EOF
+    result = asyncio.run(test_my_feature())
+    sys.exit(0 if result else 1)
+```
 
-# 3. Run the ingestion
-python3 test_tiktok_ingestion.py
+### Frontend Test Template
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { profileApi } from '../services/surrealdb';
+
+describe('Profile API', () => {
+  it('should get user profile', async () => {
+    const profile = await profileApi.getProfile('user:123');
+    expect(profile).toBeDefined();
+    expect(profile.user_id).toBe('user:123');
+  });
+});
 ```
 
 ---
 
-## Multi-User Testing Scenarios
+## 🎯 Test Scenarios
 
-Test the ML algorithm with 3 different user personas:
+### Scenario 1: New User Registration
 
-### User 1: "Sports Fan" (Interested)
+1. Open frontend
+2. Click "Sign Up"
+3. Enter email, password, display name
+4. Submit form
+5. **Expected**: Redirect to dashboard, user logged in
 
-**Profile:** Loves sports content, high engagement
+### Scenario 2: Video Upload and View
 
-```bash
-# Create user
-USER1=$(curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "sportsfan@test.com",
-    "password": "test123",
-    "display_name": "Sports Fan"
-  }' | jq -r '.id')
+1. Login as user
+2. Click upload button
+3. Select video file
+4. Enter title
+5. Submit
+6. **Expected**: Video appears in feed
+7. Click video to play
+8. **Expected**: Video plays, view count increases
 
-echo "User 1 ID: $USER1"
+### Scenario 3: Social Interaction
 
-# Simulate interested behavior (watches full videos, likes)
-for i in {1..5}; do
-  curl -X POST http://localhost:8080/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"user_id\": \"$USER1\",
-      \"video_id\": \"video:$i\",
-      \"event_type\": \"play_end\",
-      \"watch_ratio\": 0.95,
-      \"category\": \"sports\"
-    }"
-
-  curl -X POST http://localhost:8080/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"user_id\": \"$USER1\",
-      \"video_id\": \"video:$i\",
-      \"event_type\": \"like\",
-      \"watch_ratio\": 0.0,
-      \"category\": \"sports\"
-    }"
-done
-
-# Get personalized feed (should show MORE sports)
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER1&limit=10" | jq
-```
-
-### User 2: "Skipper" (Not Interested)
-
-**Profile:** Skips most content, low engagement
-
-```bash
-# Create user
-USER2=$(curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "skipper@test.com",
-    "password": "test123",
-    "display_name": "The Skipper"
-  }' | jq -r '.id')
-
-echo "User 2 ID: $USER2"
-
-# Simulate not interested behavior (skips early, no likes)
-for i in {1..5}; do
-  curl -X POST http://localhost:8080/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"user_id\": \"$USER2\",
-      \"video_id\": \"video:$i\",
-      \"event_type\": \"skip\",
-      \"watch_ratio\": 0.15,
-      \"category\": \"sports\"
-    }"
-done
-
-# Get personalized feed (should show LESS sports, more exploration)
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER2&limit=10" | jq
-```
-
-### User 3: "Explorer" (Uncertain)
-
-**Profile:** Mixed behavior, explores different categories
-
-```bash
-# Create user
-USER3=$(curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "explorer@test.com",
-    "password": "test123",
-    "display_name": "The Explorer"
-  }' | jq -r '.id')
-
-echo "User 3 ID: $USER3"
-
-# Simulate uncertain behavior (varied watch ratios, mixed categories)
-CATEGORIES=("sports" "comedy" "music" "gaming" "food")
-WATCH_RATIOS=(0.2 0.5 0.8 0.3 0.9)
-
-for i in {1..5}; do
-  CAT=${CATEGORIES[$((i % 5))]}
-  RATIO=${WATCH_RATIOS[$((i % 5))]}
-
-  curl -X POST http://localhost:8080/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"user_id\": \"$USER3\",
-      \"video_id\": \"video:$i\",
-      \"event_type\": \"play_end\",
-      \"watch_ratio\": $RATIO,
-      \"category\": \"$CAT\"
-    }"
-done
-
-# Get personalized feed (should show balanced content)
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER3&limit=10" | jq
-```
+1. Login as User A
+2. View User B's profile
+3. Click follow button
+4. **Expected**: Following count increases
+5. Like one of User B's videos
+6. **Expected**: Like count increases
+7. Post a comment
+8. **Expected**: Comment appears in list
 
 ---
 
-## Verify ML Algorithm is Working
+## 📚 Additional Resources
 
-### 1. Compare Feed Rankings
-
-```bash
-# Get feeds for all 3 users
-echo "=== Sports Fan Feed ==="
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER1&limit=5" | jq '.[].category'
-
-echo "=== Skipper Feed ==="
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER2&limit=5" | jq '.[].category'
-
-echo "=== Explorer Feed ==="
-curl "http://localhost:8080/api/v1/feed/for-you?user_id=$USER3&limit=5" | jq '.[].category'
-```
-
-**Expected Results:**
-- **User 1** (Sports Fan): Should see MORE sports videos ranked higher
-- **User 2** (Skipper): Should see MORE variety, exploration bonus kicks in
-- **User 3** (Explorer): Should see BALANCED mix of categories
-
-### 2. Explain Individual Scores
-
-```bash
-# See WHY a video is ranked high for User 1
-curl "http://localhost:8080/api/v1/feed/debug/explain-score?user_id=$USER1&video_id=video:1" | jq
-
-# Compare same video for User 2 (should score lower)
-curl "http://localhost:8080/api/v1/feed/debug/explain-score?user_id=$USER2&video_id=video:1" | jq
-```
-
-**What to Look For:**
-- **User Interest Component**: Higher for User 1 (sports fan)
-- **Video Quality Component**: Same for both users
-- **Exploration Component**: Higher for User 2 (less history)
-
-### 3. Check User Analytics
-
-```bash
-# View User 1's category preferences
-curl "http://localhost:8080/api/v1/events/analytics/user/$USER1" | jq
-
-# View User 2's category preferences
-curl "http://localhost:8080/api/v1/events/analytics/user/$USER2" | jq
-```
-
-**Expected Output:**
-```json
-{
-  "user_id": "user:1",
-  "total_events": 10,
-  "category_preferences": {
-    "sports": {
-      "impressions": 5,
-      "avg_watch_ratio": 0.95,
-      "like_rate": 1.0
-    }
-  }
-}
-```
-
-### 4. Check Video Analytics
-
-```bash
-# View video performance
-curl "http://localhost:8080/api/v1/events/analytics/video/video:1" | jq
-```
-
-**Expected Output:**
-```json
-{
-  "video_id": "video:1",
-  "impressions": 3,
-  "avg_watch_ratio": 0.63,
-  "completion_rate": 0.67,
-  "like_rate": 0.33,
-  "skip_rate": 0.33
-}
-```
+- **Backend API Docs**: http://localhost:8080/docs
+- **Backend Integration Guide**: `BACKEND_FRONTEND_INTEGRATION.md`
+- **Mobile API Guide**: `FRONTEND_MOBILE_API_GUIDE.md`
+- **Deployment Guide**: `CLOUD_RUN_DEPLOYMENT.md`
 
 ---
 
-## Automated Test Suite
+## ✅ Pre-Deployment Checklist
 
-Create a comprehensive test:
+Before deploying to production:
 
-```bash
-cat > test_ml_algorithm.sh << 'EOF'
-#!/bin/bash
-
-echo "🧪 Testing Clipstream ML Algorithm"
-echo "==================================="
-
-BASE_URL="http://localhost:8080"
-
-# Create 3 test users
-echo "📝 Creating test users..."
-USER1=$(curl -s -X POST $BASE_URL/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"sportsfan@test.com","password":"test123","display_name":"Sports Fan"}' | jq -r '.id')
-
-USER2=$(curl -s -X POST $BASE_URL/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"skipper@test.com","password":"test123","display_name":"Skipper"}' | jq -r '.id')
-
-USER3=$(curl -s -X POST $BASE_URL/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"explorer@test.com","password":"test123","display_name":"Explorer"}' | jq -r '.id')
-
-echo "✅ Created users: $USER1, $USER2, $USER3"
-
-# Simulate different behaviors
-echo ""
-echo "🎯 Simulating user interactions..."
-
-# User 1: Loves sports (high engagement)
-for i in {1..5}; do
-  curl -s -X POST $BASE_URL/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{\"user_id\":\"$USER1\",\"video_id\":\"video:$i\",\"event_type\":\"play_end\",\"watch_ratio\":0.95,\"category\":\"sports\"}" > /dev/null
-done
-
-# User 2: Skips everything (low engagement)
-for i in {1..5}; do
-  curl -s -X POST $BASE_URL/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{\"user_id\":\"$USER2\",\"video_id\":\"video:$i\",\"event_type\":\"skip\",\"watch_ratio\":0.15,\"category\":\"sports\"}" > /dev/null
-done
-
-# User 3: Mixed behavior
-CATEGORIES=("sports" "comedy" "music")
-for i in {1..3}; do
-  CAT=${CATEGORIES[$((i % 3))]}
-  curl -s -X POST $BASE_URL/api/v1/events \
-    -H "Content-Type: application/json" \
-    -d "{\"user_id\":\"$USER3\",\"video_id\":\"video:$i\",\"event_type\":\"play_end\",\"watch_ratio\":0.7,\"category\":\"$CAT\"}" > /dev/null
-done
-
-echo "✅ Simulated 13 events"
-
-# Compare feeds
-echo ""
-echo "📊 Comparing personalized feeds..."
-echo ""
-echo "User 1 (Sports Fan) - Top 3:"
-curl -s "$BASE_URL/api/v1/feed/for-you?user_id=$USER1&limit=3" | jq -r '.[] | "\(.title) (Category: \(.category), Score: \(.score // 0))"'
-
-echo ""
-echo "User 2 (Skipper) - Top 3:"
-curl -s "$BASE_URL/api/v1/feed/for-you?user_id=$USER2&limit=3" | jq -r '.[] | "\(.title) (Category: \(.category), Score: \(.score // 0))"'
-
-echo ""
-echo "User 3 (Explorer) - Top 3:"
-curl -s "$BASE_URL/api/v1/feed/for-you?user_id=$USER3&limit=3" | jq -r '.[] | "\(.title) (Category: \(.category), Score: \(.score // 0))"'
-
-echo ""
-echo "🎉 ML Algorithm Test Complete!"
-echo "✅ Feeds are personalized based on user behavior"
-EOF
-
-chmod +x test_ml_algorithm.sh
-./test_ml_algorithm.sh
-```
+- [ ] All backend tests pass
+- [ ] All frontend tests pass
+- [ ] Integration tests pass
+- [ ] No console errors in browser
+- [ ] No errors in backend logs
+- [ ] Environment variables configured
+- [ ] CORS configured correctly
+- [ ] Authentication working
+- [ ] Video upload working
+- [ ] Social features working
+- [ ] Mobile responsive
+- [ ] Performance acceptable
 
 ---
 
-## Frontend Integration (Optional)
+**Happy Testing! 🎉**
 
-To play videos in the browser, use this simple HTML test page:
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Clipstream Test Player</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .video-container { max-width: 600px; margin: 20px auto; }
-        video { width: 100%; border-radius: 8px; }
-        .controls { margin-top: 10px; }
-        button { padding: 10px 20px; margin: 5px; }
-    </style>
-</head>
-<body>
-    <div class="video-container">
-        <h1>Clipstream ML Test</h1>
-        <div id="user-info"></div>
-        <video id="player" controls></video>
-        <div class="controls">
-            <button onclick="like()">❤️ Like</button>
-            <button onclick="skip()">⏭️ Skip</button>
-            <button onclick="nextVideo()">➡️ Next</button>
-        </div>
-        <div id="analytics"></div>
-    </div>
-
-    <script>
-        const userId = "user:1"; // Change this
-        const apiUrl = "http://localhost:8080";
-        let currentVideo = null;
-        let videos = [];
-        let currentIndex = 0;
-
-        async function loadFeed() {
-            const response = await fetch(`${apiUrl}/api/v1/feed/for-you?user_id=${userId}&limit=20`);
-            videos = await response.json();
-            playVideo(0);
-        }
-
-        function playVideo(index) {
-            if (index >= videos.length) return;
-            currentIndex = index;
-            currentVideo = videos[index];
-
-            document.getElementById('player').src = currentVideo.cdn_url;
-            document.getElementById('user-info').innerHTML = `
-                <p>Video ${index + 1}/${videos.length}: ${currentVideo.title}</p>
-                <p>Category: ${currentVideo.category}</p>
-                <p>Score: ${currentVideo.score ? currentVideo.score.toFixed(3) : 'N/A'}</p>
-            `;
-
-            document.getElementById('player').play();
-        }
-
-        async function logEvent(eventType, watchRatio = 0) {
-            await fetch(`${apiUrl}/api/v1/events`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: userId,
-                    video_id: currentVideo.id,
-                    event_type: eventType,
-                    watch_ratio: watchRatio,
-                    category: currentVideo.category
-                })
-            });
-        }
-
-        function like() {
-            logEvent('like');
-            alert('Liked!');
-        }
-
-        function skip() {
-            const currentTime = document.getElementById('player').currentTime;
-            const duration = document.getElementById('player').duration;
-            logEvent('skip', currentTime / duration);
-            nextVideo();
-        }
-
-        function nextVideo() {
-            playVideo(currentIndex + 1);
-        }
-
-        // Log play_end when video ends
-        document.getElementById('player').addEventListener('ended', () => {
-            logEvent('play_end', 1.0);
-            nextVideo();
-        });
-
-        // Load feed on page load
-        loadFeed();
-    </script>
-</body>
-</html>
-```
-
-Save as `test_player.html` and open in browser!
-
----
-
-## Expected Results
-
-After running tests, you should see:
-
-✅ **Sports Fan** gets MORE sports videos ranked higher
-✅ **Skipper** gets MORE diverse content (exploration bonus)
-✅ **Explorer** gets BALANCED content across categories
-✅ **Scores explain** why each video is ranked where it is
-✅ **Analytics show** each user's preferences
-
-The ML algorithm is working if:
-1. Different users get different feed rankings
-2. User preferences influence scores (60% weight)
-3. Video quality affects all users (30% weight)
-4. Exploration bonus shows unseen content (10% weight)
-
----
-
-**Ready to test the ML algorithm! 🚀**
