@@ -81,6 +81,32 @@ echo ""
 echo "Press Ctrl+C to stop the backend"
 echo ""
 echo "=============================================="
-echo ""
+# Activate virtualenv (prefer backend/.clipstream_venv, fall back to project .clipstream_venv)
+if [ -f "backend/.clipstream_venv/bin/activate" ]; then
+    source backend/.clipstream_venv/bin/activate
+elif [ -f ".clipstream_venv/bin/activate" ]; then
+    source .clipstream_venv/bin/activate
+elif [ -f "backend/venv/bin/activate" ]; then
+    source backend/venv/bin/activate
+else
+    echo -e "${YELLOW}⚠${NC} No virtualenv found; using system Python."
+fi
 
-cd backend && python3 main.py
+# Choose the Python interpreter that will run the backend
+if [ -x "../.clipstream_venv/bin/python3" ]; then
+    PYTHON_CMD="../.clipstream_venv/bin/python3"
+elif [ -x "backend/.clipstream_venv/bin/python3" ]; then
+    PYTHON_CMD="backend/.clipstream_venv/bin/python3"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="$(command -v python3)"
+else
+    PYTHON_CMD="python3"
+fi
+
+echo "Using Python: ${PYTHON_CMD}"
+
+# Ensure itsdangerous is installed into the selected Python environment
+${PYTHON_CMD} -c "import importlib, sys; importlib.import_module('itsdangerous')" 2>/dev/null || ${PYTHON_CMD} -m pip install --upgrade itsdangerous
+
+# Run the backend
+cd backend && ${PYTHON_CMD} main.py
