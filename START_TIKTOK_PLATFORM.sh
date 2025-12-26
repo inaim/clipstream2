@@ -81,22 +81,17 @@ echo ""
 echo "Press Ctrl+C to stop the backend"
 echo ""
 echo "=============================================="
-# Activate virtualenv (prefer backend/.clipstream_venv, fall back to project .clipstream_venv)
-if [ -f "backend/.clipstream_venv/bin/activate" ]; then
-    source backend/.clipstream_venv/bin/activate
-elif [ -f ".clipstream_venv/bin/activate" ]; then
-    source .clipstream_venv/bin/activate
-elif [ -f "backend/venv/bin/activate" ]; then
-    source backend/venv/bin/activate
-else
-    echo -e "${YELLOW}⚠${NC} No virtualenv found; using system Python."
-fi
-
-# Choose the Python interpreter that will run the backend
-if [ -x "../.clipstream_venv/bin/python3" ]; then
-    PYTHON_CMD="../.clipstream_venv/bin/python3"
+# If the script is run from an activated virtualenv, prefer that interpreter
+if [ -n "${VIRTUAL_ENV}" ]; then
+    PYTHON_CMD="${VIRTUAL_ENV}/bin/python3"
+# Prefer project venv at repo root
+elif [ -x ".clipstream_venv/bin/python3" ]; then
+    PYTHON_CMD="$(pwd)/.clipstream_venv/bin/python3"
+# Then backend-specific venvs
 elif [ -x "backend/.clipstream_venv/bin/python3" ]; then
-    PYTHON_CMD="backend/.clipstream_venv/bin/python3"
+    PYTHON_CMD="$(pwd)/backend/.clipstream_venv/bin/python3"
+elif [ -x "backend/venv/bin/python3" ]; then
+    PYTHON_CMD="$(pwd)/backend/venv/bin/python3"
 elif command -v python3 >/dev/null 2>&1; then
     PYTHON_CMD="$(command -v python3)"
 else
@@ -105,8 +100,33 @@ fi
 
 echo "Using Python: ${PYTHON_CMD}"
 
-# Ensure itsdangerous is installed into the selected Python environment
-${PYTHON_CMD} -c "import importlib, sys; importlib.import_module('itsdangerous')" 2>/dev/null || ${PYTHON_CMD} -m pip install --upgrade itsdangerous
+# Ensure itsdangerous is available; try installing. If pip refuses due to system-managed Python,
+# create a local project venv at .clipstream_venv and install requirements into it.
+if ! ${PYTHON_CMD} -c "import importlib; importlib.import_module('itsdangerous')" 2>/dev/null; then
+    echo -e "${YELLOW}⚠${NC} itsdangerous not found for ${PYTHON_CMD} — attempting to install..."
+    if ${PYTHON_CMD} -m pip install --upgrade itsdangerous 2> /tmp/its_install_err.txt; then
+        echo -e "${GREEN}✓${NC} itsdangerous installed"
+    else
+        if grep -q "externally-managed-environment" /tmp/its_install_err.txt 2>/dev/null; then
+            echo -e "${YELLOW}⚠${NC} pip refused to install into the selected Python (externally-managed)."
+            echo "Creating a project virtualenv at .clipstream_venv and installing backend requirements..."
+            if [ ! -d ".clipstream_venv" ]; then
+                python3 -m venv .clipstream_venv
+            fi
+            # Activate new venv and install requirements
+            source .clipstream_venv/bin/activate
+            python3 -m pip install --upgrade pip
+            python3 -m pip install -r backend/requirements.txt
+            PYTHON_CMD="$(pwd)/.clipstream_venv/bin/python3"
+            echo -e "${GREEN}✓${NC} Virtualenv created and dependencies installed"
+        else
+            echo -e "${RED}❌ Failed to install itsdangerous. See /tmp/its_install_err.txt for details.${NC}"
+            cat /tmp/its_install_err.txt || true
+            exit 1
+        fi
+    fi
+    rm -f /tmp/its_install_err.txt
+fi
 
 # Run the backend
 cd backend && ${PYTHON_CMD} main.py
