@@ -84,20 +84,28 @@ export function ProfilePage({ userId }: ProfilePageProps) {
       const videosCount = userVideos.length;
       const likesCount = userVideos.reduce((sum: number, v: any) => sum + (v.likes_count || 0), 0);
 
-      // Followers and following counts via API (if available)
-      // If not available, set to 0
+      // Followers and following counts (best-effort; API may not exist in this build)
       let followersCount = 0;
       let followingCount = 0;
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       try {
-        const followersRes = await fetch(`/api/follows?following_id=${targetUserId}`);
-        const followersData = await followersRes.json();
-        followersCount = Array.isArray(followersData) ? followersData.length : 0;
-      } catch {}
+        const followersRes = await fetch(`${API_BASE}/api/follows?following_id=${targetUserId}`);
+        if (followersRes.ok) {
+          const followersData = await followersRes.json();
+          followersCount = Array.isArray(followersData) ? followersData.length : 0;
+        }
+      } catch {
+        // ignore missing endpoint
+      }
       try {
-        const followingRes = await fetch(`/api/follows?follower_id=${targetUserId}`);
-        const followingData = await followingRes.json();
-        followingCount = Array.isArray(followingData) ? followingData.length : 0;
-      } catch {}
+        const followingRes = await fetch(`${API_BASE}/api/follows?follower_id=${targetUserId}`);
+        if (followingRes.ok) {
+          const followingData = await followingRes.json();
+          followingCount = Array.isArray(followingData) ? followingData.length : 0;
+        }
+      } catch {
+        // ignore missing endpoint
+      }
 
       setStats({ videosCount, likesCount, followersCount, followingCount });
     } catch {

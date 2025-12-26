@@ -48,6 +48,16 @@ async def get_for_you_feed(
     # Get candidate videos
     candidate_videos = await db_client.get_for_you_feed(limit * 3)  # Get 3x for better ranking
 
+    # Drop any videos pointing to the deprecated finailabz CDN to avoid TLS errors in dev
+    if candidate_videos:
+        filtered = []
+        for v in candidate_videos:
+            cdn = str(v.get("cdn_url") or "")
+            if "cdn.finailabz.com" in cdn:
+                continue
+            filtered.append(v)
+        candidate_videos = filtered
+
     # If no user_id or ML disabled, return unranked
     if not user_id or not use_ml or not candidate_videos:
         return candidate_videos[:limit] if candidate_videos else []

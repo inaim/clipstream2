@@ -10,8 +10,10 @@ and can be triggered on-demand for continuous ingestion.
 
 import time
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from surrealdb import AsyncSurreal
+from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +263,7 @@ async def generate_demo_videos(count: int = 10) -> List[Dict[str, Any]]:
     categories = ["sports", "comedy", "music", "gaming", "education", "food", "travel"]
     demo_videos = []
 
-    demo_base = os.getenv("DEMO_VIDEO_BASE_URL", "http://localhost:8080")
+    demo_base = os.getenv("DEMO_VIDEO_BASE_URL") or getattr(settings, "BACKEND_BASE_URL", None) or "http://localhost:8080"
     demo_base = demo_base.rstrip("/")
 
     for i in range(count):
