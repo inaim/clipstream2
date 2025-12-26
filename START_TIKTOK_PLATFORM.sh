@@ -61,22 +61,43 @@ echo ""
 echo "⚙️  Setting environment variables..."
 
 export INGEST_DEMO_VIDEOS=false
+export ENABLE_TIKTOK_AUTO_INGEST=true
 export ENVIRONMENT=development
 export REDIS_URL=redis://localhost:6379/0
 export ENABLE_AI_PROCESSING=true
 export ENABLE_TOKEN_REWARDS=true
 
 echo -e "${GREEN}✓${NC} Environment configured"
+echo -e "${GREEN}✓${NC} TikTok auto-ingestion ENABLED"
+
+# Check if Playwright is installed (needed for browser scraping)
+if ! python3 -c "from playwright.sync_api import sync_playwright" 2>/dev/null; then
+    echo ""
+    echo -e "${YELLOW}⚠${NC}  Playwright not installed. TikTok browser scraping requires it."
+    echo "Installing Playwright..."
+    pip install playwright
+    playwright install chromium
+fi
 
 # Start backend
 echo ""
-echo "🎬 Starting backend with real-time ML..."
+echo "🎬 Starting backend with real-time ML + TikTok Auto-Ingestion..."
 echo ""
 echo "Backend will start with:"
-echo "  - Real playable videos (13 videos)"
+echo "  - TikTok Auto-Ingestion (browser scraping every 5 minutes) 🤖"
 echo "  - Infinite scroll feed"
 echo "  - Real-time ML feedback (SSE)"
 echo "  - Event buffering"
+echo ""
+echo "📺 TikTok videos will appear in your feed automatically!"
+echo "   - Sources: #fyp, #viral, #trending, etc."
+echo "   - Scraping interval: 5 minutes"
+echo "   - Videos per cycle: 10"
+echo ""
+echo "🌐 Access your dashboard at:"
+echo "   - Backend API: http://localhost:8080"
+echo "   - Health check: http://localhost:8080/health"
+echo "   - API docs: http://localhost:8080/docs"
 echo ""
 echo "Press Ctrl+C to stop the backend"
 echo ""

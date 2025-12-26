@@ -1,503 +1,536 @@
-# 🎬 TikTok Auto-Ingestion Guide
+# 🎬 TikTok Auto-Ingestion Guide - Complete Documentation
 
 ## What is This?
 
-**Automatic TikTok video ingestion** - A background service that continuously:
-- Fetches TikTok videos
-- Downloads them with yt-dlp
-- Ingests into your database
-- Makes them available in your real-time ML feed
+**Automatic TikTok video ingestion with browser scraping** - A background service that continuously:
+- Scrapes trending TikTok videos using headless browser (Playwright)
+- Uses infinite scroll to discover new content
+- Downloads videos with yt-dlp (no watermark)
+- Extracts metadata (views, likes, hashtags, creator)
+- Ingests into your database automatically
+- Makes videos available in your real-time ML feed
 
 ---
 
-## Quick Start (3 Steps)
-
-### Step 1: Install yt-dlp
+## 🚀 Quick Start - One Command!
 
 ```bash
-pip install yt-dlp
-# OR
-brew install yt-dlp
-```
-
-### Step 2: Add TikTok URLs
-
-```bash
-# Edit tiktok_urls.txt
-nano tiktok_urls.txt
-
-# Add URLs (one per line):
-https://www.tiktok.com/@username/video/1234567890|sports
-https://www.tiktok.com/@username/video/0987654321|comedy
-https://www.tiktok.com/@username/video/5678901234|music
-```
-
-### Step 3: Start Auto-Ingestion
-
-```bash
-# Start the platform (if not already running)
 bash START_TIKTOK_PLATFORM.sh
-
-# Start auto-ingestion via API
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" | jq
 ```
 
-**That's it!** Videos will be fetched and ingested every 5 minutes.
+That's it! This will:
+1. ✅ Start SurrealDB and Redis
+2. ✅ Install dependencies (yt-dlp, Playwright)
+3. ✅ Enable TikTok auto-ingestion automatically
+4. ✅ Start browser scraping every 5 minutes
+5. ✅ Videos appear in your feed automatically!
 
 ---
 
-## How It Works
+## 📋 Prerequisites
+
+### Required:
+- Docker (for SurrealDB and Redis)
+- Python 3.8+
+- pip
+
+### Auto-Installed by START_TIKTOK_PLATFORM.sh:
+- yt-dlp (video downloader)
+- Playwright (browser automation)
+- Chromium browser
+
+Or install manually:
+```bash
+pip install yt-dlp playwright
+playwright install chromium
+```
+
+---
+
+## 🎯 How It Works
+
+### Architecture Flow:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│              TIKTOK AUTO-INGESTION FLOW                      │
-└─────────────────────────────────────────────────────────────┘
-
+START_TIKTOK_PLATFORM.sh
+         ↓
+Backend starts (ENABLE_TIKTOK_AUTO_INGEST=true)
+         ↓
+Auto-ingestion service starts
+         ↓
 Every 5 minutes:
     ↓
-Read tiktok_urls.txt
+    Browser Launch (Headless Chromium)
     ↓
-For each URL:
+    Navigate to TikTok hashtags (#fyp, #viral, etc.)
     ↓
-  Download with yt-dlp
+    Infinite Scroll (load more videos)
     ↓
-  Extract metadata (title, creator, views, etc.)
+    Extract Video URLs + Metadata
     ↓
-  Save video file
+    Download Videos (yt-dlp)
     ↓
-  Insert into SurrealDB
+    Ingest to Database (SurrealDB)
     ↓
-Video available in feed!
+    Publish Events (Redis)
     ↓
-ML ranks it with your preferences
-    ↓
-You see it in the swipe interface
+Videos Available in Feeds!
 ```
 
-**End-to-end:** ~30 seconds per video
+### What Gets Scraped:
+
+**Default Trending Hashtags:**
+- #fyp (For You Page)
+- #foryou
+- #viral
+- #trending
+- #funny
+- #comedy
+- #sports
+- #music
+- #gaming
+- #dance
+- #cooking
+- #travel
+
+**Metadata Extracted:**
+- Video URL and ID
+- Title and description
+- Creator username
+- View count
+- Like count
+- Comment count
+- Share count
+- Hashtags
+- Upload date
 
 ---
 
-## API Endpoints
+## ⚙️ Configuration
 
-### Start Auto-Ingestion
+### Auto-Start Configuration (Default: Enabled)
 
+Auto-ingestion starts automatically when you run `START_TIKTOK_PLATFORM.sh`.
+
+To **disable** auto-start, add to your `.env`:
 ```bash
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "fetch_interval": 300,
-       "videos_per_fetch": 10
-     }' | jq
+ENABLE_TIKTOK_AUTO_INGEST=false
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "TikTok auto-ingestion started",
-  "status": {
-    "is_running": true,
-    "fetch_interval": 300,
-    "videos_per_fetch": 10,
-    "total_fetched": 0,
-    "total_ingested": 0,
-    "total_failed": 0
-  }
-}
+### Scraping Parameters
+
+Edit `backend/app/tiktok_auto_ingestion.py`:
+
+```python
+# Fetch interval (seconds)
+FETCH_INTERVAL = 300  # 5 minutes (default)
+
+# Videos per fetch cycle
+VIDEOS_PER_FETCH = 10  # default
+
+# Trending hashtags to scrape
+TRENDING_HASHTAGS = [
+    "fyp", "foryou", "viral", "trending",
+    "funny", "comedy", "sports", "music",
+    "gaming", "dance", "cooking", "travel"
+]
 ```
 
-### Stop Auto-Ingestion
+### Browser Settings
 
-```bash
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/stop" | jq
+Edit `backend/app/tiktok_browser_scraper.py`:
+
+```python
+scraper = TikTokBrowserScraper(
+    headless=True,           # Run in headless mode
+    max_videos=50,           # Max videos per session
+    scroll_delay=2.0,        # Seconds between scrolls
+    user_agent="..."         # Custom user agent
+)
 ```
+
+---
+
+## 🎛️ API Control
 
 ### Check Status
 
 ```bash
-curl "http://localhost:8080/api/v1/tiktok-ingestion/status" | jq
+curl http://localhost:8080/api/v1/tiktok-ingestion/status | jq
 ```
 
-**Response:**
+Response:
 ```json
 {
   "success": true,
   "status": {
     "is_running": true,
+    "use_browser": true,
     "fetch_interval": 300,
     "videos_per_fetch": 10,
-    "total_fetched": 25,
-    "total_ingested": 23,
-    "total_failed": 2,
-    "success_rate": 0.92,
-    "last_fetch_time": 1703001234.56
+    "total_fetched": 45,
+    "total_ingested": 42,
+    "total_failed": 3,
+    "success_rate": 0.933,
+    "last_fetch_time": 1703012345.67
   }
 }
 ```
 
-### Trigger Manual Ingestion
+### Start Service (with custom config)
 
 ```bash
-# Force an ingestion cycle immediately (don't wait 5 minutes)
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/trigger-now" | jq
+curl -X POST http://localhost:8080/api/v1/tiktok-ingestion/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "use_browser": true,
+    "fetch_interval": 180,
+    "videos_per_fetch": 20
+  }' | jq
+```
+
+### Stop Service
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tiktok-ingestion/stop | jq
+```
+
+### Trigger Manual Fetch
+
+```bash
+curl -X POST http://localhost:8080/api/v1/tiktok-ingestion/trigger-now | jq
 ```
 
 ---
 
-## Configuration
+## 📺 Accessing Videos in Frontend
 
-### Fetch Interval
+### Option 1: For You Feed (ML-Ranked)
 
-How often to check for new videos:
-
-```bash
-# Every 5 minutes (default)
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"fetch_interval": 300}' | jq
-
-# Every 10 minutes
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"fetch_interval": 600}' | jq
-
-# Every 1 hour
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"fetch_interval": 3600}' | jq
+```javascript
+const response = await fetch('http://localhost:8080/api/v1/feed/for-you?user_id=user:123&limit=20');
+const data = await response.json();
+const videos = data.videos;
 ```
 
-### Videos Per Fetch
+### Option 2: Infinite Scroll Feed
 
-How many videos to process per cycle:
+```javascript
+// Initial load
+const response = await fetch('http://localhost:8080/api/v1/infinite/feed?limit=10');
+const { videos, next_cursor } = await response.json();
 
-```bash
-# Process 10 videos per cycle (default)
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"videos_per_fetch": 10}' | jq
+// Load more
+const loadMore = await fetch(`http://localhost:8080/api/v1/infinite/feed?cursor=${next_cursor}`);
+```
 
-# Process 50 videos per cycle
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"videos_per_fetch": 50}' | jq
+### Option 3: Real-time Updates (SSE)
+
+```javascript
+const eventSource = new EventSource('http://localhost:8080/api/videos/events/global');
+
+eventSource.addEventListener('video_created', (event) => {
+  const newVideo = JSON.parse(event.data);
+  console.log('New TikTok video:', newVideo);
+});
+```
+
+### Complete React Example
+
+```tsx
+import { useEffect, useState } from 'react';
+
+interface Video {
+  id: string;
+  title: string;
+  cdn_url: string;
+  creator_name: string;
+  view_count: number;
+  like_count: number;
+  hashtags: string[];
+}
+
+export default function TikTokFeed({ userId }: { userId: string }) {
+  const [videos, setVideos] = useState<Video[]>([]);
+
+  useEffect(() => {
+    fetchVideos();
+    const interval = setInterval(fetchVideos, 60000); // Refresh every minute
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  const fetchVideos = async () => {
+    const res = await fetch(`http://localhost:8080/api/v1/feed/for-you?user_id=${userId}&limit=20`);
+    const data = await res.json();
+    setVideos(data.videos || []);
+  };
+
+  return (
+    <div className="video-feed">
+      {videos.map(video => (
+        <div key={video.id} className="video-card">
+          <video src={video.cdn_url} controls />
+          <h3>{video.title}</h3>
+          <p>@{video.creator_name}</p>
+          <span>👁️ {video.view_count} ❤️ {video.like_count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 ```
 
 ---
 
-## Adding TikTok URLs
+## 🔍 Monitoring & Debugging
 
-### Method 1: Edit tiktok_urls.txt (Easiest)
+### View Backend Logs
 
 ```bash
-# Edit the file
-nano tiktok_urls.txt
+# Logs show auto-ingestion activity
+tail -f backend/logs/app.log
+```
 
-# Add URLs:
+Look for:
+```
+[STEP 3.5] Starting TikTok auto-ingestion with browser scraping...
+✅ TikTok auto-ingestion service started (browser scraping enabled)
+   - Scraping trending hashtags every 5 minutes
+   - Browser: Headless Chromium with infinite scroll
+
+Using browser scraper to fetch trending videos
+Browser scraper found 10 videos
+Ingested: TikTok Video Title
+Batch complete: 8 ingested, 2 failed
+```
+
+### Run in Non-Headless Mode (See Browser)
+
+Edit `backend/app/tiktok_browser_scraper.py`:
+```python
+scraper = TikTokBrowserScraper(headless=False)  # Show browser window
+```
+
+### Test Scraper Directly
+
+```bash
+cd backend
+python -m app.tiktok_browser_scraper
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+### Issue: Playwright not found
+
+**Error:**
+```
+BrowserType.launch: Executable doesn't exist
+```
+
+**Solution:**
+```bash
+pip install playwright
+playwright install chromium
+```
+
+### Issue: No videos being scraped
+
+**Check:**
+1. Browser scraping enabled? Check status API
+2. Playwright installed? Run `playwright --version`
+3. Internet connection working?
+4. Check logs for errors
+
+**Debug:**
+```bash
+# Run scraper manually
+cd backend
+python -m app.tiktok_browser_scraper
+
+# Check API status
+curl http://localhost:8080/api/v1/tiktok-ingestion/status | jq
+```
+
+### Issue: Videos fail to download
+
+**Error:** `yt-dlp failed`
+
+**Solution:**
+```bash
+# Update yt-dlp
+pip install -U yt-dlp
+
+# Test manually
+yt-dlp "https://www.tiktok.com/@user/video/123"
+```
+
+### Issue: Auto-ingestion not starting
+
+**Check:**
+1. Environment variable set?
+   ```bash
+   echo $ENABLE_TIKTOK_AUTO_INGEST
+   ```
+2. Backend logs show Step 3.5?
+3. Using latest `main.py`?
+
+---
+
+## 📊 Performance & Best Practices
+
+### Recommended Settings
+
+```python
+# Good for development
+FETCH_INTERVAL = 300  # 5 minutes
+VIDEOS_PER_FETCH = 10
+
+# Good for production
+FETCH_INTERVAL = 600  # 10 minutes
+VIDEOS_PER_FETCH = 20
+```
+
+### Rate Limiting Tips
+
+1. **Don't scrape too frequently** - TikTok may rate limit
+2. **Use reasonable delays** - 2-3 seconds between scrolls
+3. **Rotate user agents** - Randomize browser fingerprints
+4. **Monitor success rate** - Should be >80%
+
+### Storage Considerations
+
+```bash
+# Each video ~5-20MB
+# 10 videos/5min = 120 videos/hour = ~1-2GB/hour
+# Plan storage accordingly
+```
+
+---
+
+## 🔐 Security & Compliance
+
+### Important Notes:
+
+1. **TikTok ToS** - Ensure compliance with TikTok's terms of service
+2. **Copyright** - Respect creator rights and copyright
+3. **Rate Limits** - Don't abuse TikTok's servers
+4. **Content Moderation** - Filter inappropriate content
+5. **User Data** - Handle metadata according to privacy laws
+
+### Content Filtering
+
+Add to `backend/app/tiktok_auto_ingestion.py`:
+
+```python
+async def _should_ingest_video(self, video_info):
+    """Filter videos before ingesting"""
+    # Check minimum quality thresholds
+    if video_info.get('view_count', 0) < 1000:
+        return False  # Skip low-quality videos
+
+    # Filter by keywords
+    blocked_words = ['spam', 'scam']
+    description = video_info.get('description', '').lower()
+    if any(word in description for word in blocked_words):
+        return False
+
+    return True
+```
+
+---
+
+## 📚 Advanced Usage
+
+### Custom Hashtag Scraping
+
+```python
+# In your code
+from app.tiktok_browser_scraper import TikTokBrowserScraper
+
+async def scrape_custom_hashtags():
+    async with TikTokBrowserScraper() as scraper:
+        videos = await scraper.scrape_multiple_hashtags(
+            hashtags=['yourhashtag1', 'yourhashtag2'],
+            videos_per_hashtag=15
+        )
+        return videos
+```
+
+### User Profile Scraping
+
+```python
+async def scrape_user_profile(username):
+    async with TikTokBrowserScraper() as scraper:
+        videos = await scraper.scrape_user_videos(
+            username=username,
+            limit=30
+        )
+        return videos
+```
+
+### Fallback to Manual URLs
+
+If browser scraping fails, create `backend/app/tiktok_urls.txt`:
+
+```
 https://www.tiktok.com/@user/video/123|sports
 https://www.tiktok.com/@user/video/456|comedy
 https://www.tiktok.com/@user/video/789|music
-
-# Save and exit
-# Auto-ingestion will pick them up on next cycle
 ```
 
-### Method 2: Programmatically Add URLs
-
-```python
-# Python script to add URLs
-import asyncio
-
-urls_to_add = [
-    "https://www.tiktok.com/@user/video/123|sports",
-    "https://www.tiktok.com/@user/video/456|comedy",
-]
-
-with open("tiktok_urls.txt", "a") as f:
-    for url in urls_to_add:
-        f.write(url + "\n")
-
-print(f"Added {len(urls_to_add)} URLs")
-```
-
-### Method 3: Use TikTok API (Advanced)
-
-If you have TikTok API access:
-
-```python
-# backend/app/tiktok_auto_ingestion.py
-# Modify _get_trending_tiktok_urls() method:
-
-from TikTokApi import TikTokApi
-
-async def _get_trending_tiktok_urls(self):
-    async with TikTokApi() as api:
-        trending = api.trending.videos(count=self.videos_per_fetch)
-
-        urls = []
-        async for video in trending:
-            urls.append({
-                "url": video.video.downloadAddr,
-                "category": "trending"
-            })
-
-        return urls
-```
+The service will automatically fall back to this list.
 
 ---
 
-## Troubleshooting
+## 🎉 Summary
 
-### "yt-dlp not installed"
+### What You Get:
 
-```bash
-pip install yt-dlp
-# OR
-brew install yt-dlp
+✅ **Automatic TikTok scraping** - No manual work needed
+✅ **Browser-based** - Uses real browser, handles JavaScript
+✅ **Infinite scroll** - Loads as many videos as you want
+✅ **Auto-start** - Begins when you launch platform
+✅ **Real-time feeds** - Videos appear immediately
+✅ **ML-powered** - Integrated with recommendation engine
+✅ **Production-ready** - Error handling, fallbacks, monitoring
 
-# Verify installation
-yt-dlp --version
-```
-
-### "No TikTok URLs found"
-
-Make sure `tiktok_urls.txt` exists and has URLs:
+### Quick Commands:
 
 ```bash
-# Check file exists
-ls -la tiktok_urls.txt
+# Start everything
+bash START_TIKTOK_PLATFORM.sh
 
-# Check content
-cat tiktok_urls.txt
+# Check status
+curl http://localhost:8080/api/v1/tiktok-ingestion/status | jq
 
-# Add sample URL
-echo "https://www.tiktok.com/@user/video/123|sports" >> tiktok_urls.txt
-```
-
-### "Download failed"
-
-Common causes:
-- Invalid TikTok URL
-- Video deleted/private
-- TikTok rate limiting
-- Network issues
-
-Check logs:
-```bash
-# Check backend logs
+# View logs
 tail -f backend/logs/app.log
 
-# Or run with verbose logging
-LOGGING_LEVEL=DEBUG bash START_TIKTOK_PLATFORM.sh
-```
-
-### "Videos not appearing in feed"
-
-1. **Check ingestion status:**
-```bash
-curl "http://localhost:8080/api/v1/tiktok-ingestion/status" | jq
-```
-
-2. **Check database:**
-```bash
-# Query videos in database
-curl "http://localhost:8080/api/v1/videos" | jq '.videos | length'
-```
-
-3. **Trigger manual refresh:**
-```bash
-curl -X POST "http://localhost:8080/api/v1/infinite/refresh" | jq
+# Access videos
+curl http://localhost:8080/api/v1/feed/for-you?user_id=user:test&limit=10 | jq
 ```
 
 ---
 
-## Production Deployment
+## 📖 Related Documentation
 
-### Automatic Startup
-
-Add to your startup script:
-
-```bash
-# In START_TIKTOK_PLATFORM.sh
-# After backend starts, enable auto-ingestion
-
-sleep 5  # Wait for backend to be ready
-
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"fetch_interval": 300}' > /dev/null 2>&1
-
-echo "✅ TikTok auto-ingestion enabled"
-```
-
-### Systemd Service (Linux)
-
-```ini
-# /etc/systemd/system/tiktok-ingestion.service
-
-[Unit]
-Description=TikTok Auto-Ingestion Service
-After=network.target
-
-[Service]
-Type=simple
-User=clipstream
-WorkingDirectory=/opt/clipstream
-ExecStart=/usr/bin/curl -X POST http://localhost:8080/api/v1/tiktok-ingestion/start
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Docker Integration
-
-```yaml
-# docker-compose.yml
-
-services:
-  backend:
-    # ... existing config
-    environment:
-      - TIKTOK_AUTO_INGESTION=true
-      - TIKTOK_FETCH_INTERVAL=300
-      - TIKTOK_VIDEOS_PER_FETCH=10
-```
-
-### Health Monitoring
-
-```bash
-# Check if ingestion is running
-status=$(curl -s "http://localhost:8080/api/v1/tiktok-ingestion/status" | jq -r '.status.is_running')
-
-if [ "$status" != "true" ]; then
-    echo "⚠️  Auto-ingestion not running! Starting..."
-    curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start"
-fi
-```
+- **Browser Scraping Details**: `backend/TIKTOK_BROWSER_SCRAPING.md`
+- **Auto-Start Configuration**: `AUTO_START_TIKTOK.md`
+- **API Reference**: `http://localhost:8080/docs`
+- **Startup Lifecycle**: `docs/STARTUP_LIFECYCLE.md`
+- **Real-time Events**: `docs/TIKTOK_REALTIME_GUIDE.md`
 
 ---
 
-## Performance
+## 🆘 Support
 
-### Ingestion Speed
+**Still having issues?**
 
-- **Download:** ~5-10 seconds per video (depends on size)
-- **Metadata extraction:** ~1 second
-- **Database insertion:** ~0.1 seconds
-- **Total:** ~10 seconds per video
+1. Check the logs: `tail -f backend/logs/app.log`
+2. Verify Playwright: `playwright --version`
+3. Test scraper: `python -m app.tiktok_browser_scraper`
+4. Check API status: `curl localhost:8080/api/v1/tiktok-ingestion/status`
 
-### Resource Usage
-
-- **CPU:** Minimal (yt-dlp is efficient)
-- **Memory:** ~100 MB per video (temporary)
-- **Disk:** Depends on video length (1-5 MB per minute)
-- **Network:** ~2-5 MB per video
-
-### Scaling
-
-**For high volume (100+ videos/hour):**
-
-1. **Increase fetch interval:**
-```bash
-curl -X POST "http://localhost:8080/api/v1/tiktok-ingestion/start" \
-     -d '{"fetch_interval": 60, "videos_per_fetch": 50}'
-```
-
-2. **Use multiple workers:**
-```python
-# Run multiple ingestion services in parallel
-workers = 3
-for i in range(workers):
-    service = TikTokAutoIngestion()
-    await service.start()
-```
-
-3. **Use distributed task queue:**
-```python
-# Use Celery for distributed ingestion
-from celery import Celery
-
-app = Celery('tasks', broker='redis://localhost:6379')
-
-@app.task
-def ingest_tiktok_video(url):
-    # Download and ingest
-    pass
-```
-
----
-
-## Legal Considerations
-
-**⚠️ IMPORTANT:**
-
-1. **TikTok Terms of Service:**
-   - Downloading TikTok videos may violate TikTok's TOS
-   - Use only for educational/testing purposes
-   - Don't redistribute or monetize downloaded content
-
-2. **Copyright:**
-   - Videos belong to their creators
-   - Respect copyright laws
-   - Get permission before using
-
-3. **Best Practices:**
-   - Use for personal testing only
-   - Consider user-generated content instead
-   - Partner with creators for licensed content
-   - Use Creative Commons videos
-
----
-
-## Alternatives to TikTok Scraping
-
-### 1. User-Generated Content (Recommended)
-
-Let users upload their own videos:
-
-```bash
-curl -X POST "http://localhost:8080/api/v1/videos/upload" \
-     -F "file=@video.mp4" \
-     -F "category=comedy"
-```
-
-**Benefits:**
-- No copyright issues
-- No TOS violations
-- Users control content
-- Builds community
-
-### 2. Licensed Content
-
-Partner with content creators:
-
-- Stock video sites (Pexels, Pixabay)
-- Creator partnerships
-- Licensed video libraries
-- Creative Commons content
-
-### 3. TikTok Official API
-
-Apply for TikTok API access:
-
-- https://developers.tiktok.com/
-- Requires approval
-- Official and legal
-- Access to trending feed
-
----
-
-## Summary
-
-**Auto-ingestion is now working!**
-
-✅ Background service runs every 5 minutes
-✅ Fetches TikTok URLs from `tiktok_urls.txt`
-✅ Downloads with yt-dlp
-✅ Ingests into database
-✅ Appears in your real-time ML feed
-
-**To start using:**
-
-1. Install yt-dlp: `pip install yt-dlp`
-2. Add URLs: Edit `tiktok_urls.txt`
-3. Start service: `curl -X POST http://localhost:8080/api/v1/tiktok-ingestion/start`
-4. Watch videos appear in feed!
-
-**Your platform now has continuous TikTok video ingestion! 🎉**
+**Everything working?** Videos will appear in your feed every 5 minutes! 🎊
