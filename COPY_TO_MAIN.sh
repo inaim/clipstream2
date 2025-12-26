@@ -45,13 +45,20 @@ cp "$WORKTREE/backend/.env.example" "$MAIN_REPO/backend/" && echo "  ✓ .env.ex
 cp "$WORKTREE/backend/.env.production" "$MAIN_REPO/backend/" && echo "  ✓ .env.production"
 cp "$WORKTREE/backend/seed_real_videos.py" "$MAIN_REPO/backend/" && echo "  ✓ seed_real_videos.py"
 
-# Copy documentation
+# Copy backend documentation
 echo ""
-echo "📄 Copying documentation..."
+echo "📄 Copying backend documentation..."
 
 cp "$WORKTREE/backend/STARTUP_LIFECYCLE.md" "$MAIN_REPO/backend/" && echo "  ✓ STARTUP_LIFECYCLE.md"
 cp "$WORKTREE/backend/IMPLEMENTATION_SUMMARY.md" "$MAIN_REPO/backend/" && echo "  ✓ IMPLEMENTATION_SUMMARY.md"
 cp "$WORKTREE/backend/TESTING_GUIDE.md" "$MAIN_REPO/backend/" && echo "  ✓ TESTING_GUIDE.md"
+
+# Copy organized docs folder (RAG-ready)
+echo ""
+echo "📚 Copying organized docs folder..."
+
+mkdir -p "$MAIN_REPO/docs"
+cp -r "$WORKTREE/docs/"* "$MAIN_REPO/docs/" && echo "  ✓ docs/ (RAG knowledge base)"
 
 # Copy root files
 echo ""
@@ -64,6 +71,10 @@ cp "$WORKTREE/TIKTOK_REALTIME_GUIDE.md" "$MAIN_REPO/" && echo "  ✓ TIKTOK_REAL
 cp "$WORKTREE/TIKTOK_COMPLETE_SUMMARY.md" "$MAIN_REPO/" && echo "  ✓ TIKTOK_COMPLETE_SUMMARY.md (NEW)"
 cp "$WORKTREE/EMBEDDINGS_GUIDE.md" "$MAIN_REPO/" && echo "  ✓ EMBEDDINGS_GUIDE.md (NEW)"
 cp "$WORKTREE/FINAL_COMPLETE.md" "$MAIN_REPO/" && echo "  ✓ FINAL_COMPLETE.md (NEW)"
+cp "$WORKTREE/DOCS_ORGANIZED.md" "$MAIN_REPO/" && echo "  ✓ DOCS_ORGANIZED.md (NEW)"
+cp "$WORKTREE/DEPLOYMENT_CHECKLIST.md" "$MAIN_REPO/" && echo "  ✓ DEPLOYMENT_CHECKLIST.md (NEW)"
+cp "$WORKTREE/README_DEPLOYMENT.md" "$MAIN_REPO/" && echo "  ✓ README_DEPLOYMENT.md (NEW)"
+cp "$WORKTREE/QUICK_REFERENCE.md" "$MAIN_REPO/" && echo "  ✓ QUICK_REFERENCE.md (NEW)"
 cp "$WORKTREE/frontend_tiktok_swipe.html" "$MAIN_REPO/" && echo "  ✓ frontend_tiktok_swipe.html (NEW)"
 cp "$WORKTREE/TEST_NOW.sh" "$MAIN_REPO/" && echo "  ✓ TEST_NOW.sh"
 cp "$WORKTREE/START_TIKTOK_PLATFORM.sh" "$MAIN_REPO/" && echo "  ✓ START_TIKTOK_PLATFORM.sh (NEW)"

@@ -1,0 +1,339 @@
+{
+  "version": "1.0.0",
+  "platform": "Clipstream TikTok-style Video Platform",
+  "last_updated": "2024-12-25",
+  "total_documents": 15,
+  "categories": ["help", "api", "architecture", "guides"],
+
+  "documents": [
+    {
+      "id": "quick_start",
+      "category": "help",
+      "title": "Quick Start Guide",
+      "file": "help/QUICK_START.md",
+      "keywords": ["start", "setup", "install", "quick", "begin", "tutorial", "getting started"],
+      "summary": "Step-by-step guide to start Clipstream platform in 5 minutes. Covers Docker setup, backend startup, testing swipe interface, and API testing.",
+      "topics": [
+        "Docker setup",
+        "Backend initialization",
+        "Swipe interface testing",
+        "API testing",
+        "Troubleshooting basics"
+      ],
+      "commands": [
+        "bash START_TIKTOK_PLATFORM.sh",
+        "python3 -m http.server 8000",
+        "curl http://localhost:8080/api/v1/embeddings/stats"
+      ]
+    },
+
+    {
+      "id": "embeddings_guide",
+      "category": "guides",
+      "title": "Collision-less Embeddings Guide",
+      "file": "guides/EMBEDDINGS.md",
+      "keywords": ["embeddings", "faiss", "similarity", "vector", "collision", "sha256", "search"],
+      "summary": "Complete guide to the collision-less embedding system using SHA256 hashing and FAISS indexing. Covers API usage, performance benchmarks, and production deployment.",
+      "topics": [
+        "SHA256 collision prevention",
+        "FAISS indexing",
+        "Similarity search",
+        "Redis caching",
+        "Performance optimization",
+        "GPU acceleration"
+      ],
+      "api_endpoints": [
+        "POST /api/v1/embeddings/add",
+        "POST /api/v1/embeddings/batch",
+        "GET /api/v1/embeddings/similar/{video_id}",
+        "GET /api/v1/embeddings/stats"
+      ],
+      "performance": {
+        "1k_vectors": "2ms",
+        "100k_vectors": "15ms",
+        "1m_vectors": "50ms",
+        "collision_rate": "0%"
+      }
+    },
+
+    {
+      "id": "infinite_feed",
+      "category": "api",
+      "title": "Infinite Scroll Feed API",
+      "file": "api/INFINITE_FEED.md",
+      "keywords": ["infinite", "scroll", "pagination", "cursor", "feed", "for-you"],
+      "summary": "Cursor-based pagination API for infinite scroll feed. Excludes seen videos, supports ML ranking, and handles prefetching.",
+      "topics": [
+        "Cursor-based pagination",
+        "Seen video filtering",
+        "ML ranking integration",
+        "Prefetch optimization",
+        "Feed quality metrics"
+      ],
+      "api_endpoints": [
+        "POST /api/v1/infinite/infinite",
+        "POST /api/v1/infinite/events/batch",
+        "GET /api/v1/infinite/prefetch",
+        "POST /api/v1/infinite/refresh"
+      ]
+    },
+
+    {
+      "id": "realtime_ml",
+      "category": "guides",
+      "title": "Real-time ML Feedback",
+      "file": "guides/REALTIME_ML.md",
+      "keywords": ["realtime", "ml", "sse", "server-sent", "events", "redis", "pubsub", "feedback"],
+      "summary": "Real-time ML feedback system using Server-Sent Events (SSE) and Redis Pub/Sub. Provides instant preference updates as users interact with videos.",
+      "topics": [
+        "Server-Sent Events (SSE)",
+        "Redis Pub/Sub",
+        "Event buffering",
+        "ML preference updates",
+        "Real-time feedback loop"
+      ],
+      "api_endpoints": [
+        "GET /api/v1/realtime/stream/ml-feedback",
+        "POST /api/v1/realtime/stream/event",
+        "POST /api/v1/realtime/stream/event/buffered"
+      ],
+      "performance": {
+        "sse_latency": "10ms",
+        "ml_feedback": "100ms",
+        "event_processing": "20ms"
+      }
+    },
+
+    {
+      "id": "tiktok_ingestion",
+      "category": "guides",
+      "title": "TikTok Video Ingestion",
+      "file": "guides/TIKTOK_INGESTION.md",
+      "keywords": ["tiktok", "scraper", "yt-dlp", "download", "ingest", "video"],
+      "summary": "Guide to downloading and ingesting real TikTok videos using yt-dlp. Covers metadata extraction, CDN upload, and batch processing.",
+      "topics": [
+        "yt-dlp setup",
+        "TikTok video download",
+        "Metadata extraction",
+        "CDN upload (GCS)",
+        "Batch ingestion"
+      ],
+      "commands": [
+        "pip install yt-dlp",
+        "python3 ingest_tiktok.py"
+      ]
+    },
+
+    {
+      "id": "ml_algorithm",
+      "category": "architecture",
+      "title": "ML Ranking Algorithm",
+      "file": "architecture/ML_ALGORITHM.md",
+      "keywords": ["ml", "algorithm", "ranking", "scoring", "recommendation", "personalization"],
+      "summary": "TikTok-style 3-component ML ranking algorithm: User Interest (60%) + Video Quality (30%) + Exploration (10%). Includes diversity re-ranking.",
+      "topics": [
+        "User Interest scoring",
+        "Video Quality metrics",
+        "Exploration bonus (UCB)",
+        "Diversity re-ranking",
+        "Category preferences",
+        "Embedding similarity"
+      ],
+      "components": {
+        "user_interest": "60%",
+        "video_quality": "30%",
+        "exploration": "10%"
+      }
+    },
+
+    {
+      "id": "database_schema",
+      "category": "architecture",
+      "title": "Database Schema",
+      "file": "architecture/DATABASE_SCHEMA.md",
+      "keywords": ["database", "schema", "surrealdb", "tables", "indexes"],
+      "summary": "Complete database schema with 9 tables: video, user, event, model, likes, follows, comment, earnings, report. Optimized indexes for performance.",
+      "topics": [
+        "Table definitions",
+        "Index optimization",
+        "Graph relations",
+        "Embedding storage",
+        "Stats aggregation"
+      ],
+      "tables": [
+        "video",
+        "user",
+        "event",
+        "model",
+        "likes",
+        "follows",
+        "comment",
+        "earnings",
+        "report"
+      ]
+    },
+
+    {
+      "id": "scaling",
+      "category": "architecture",
+      "title": "Scaling Guide",
+      "file": "architecture/SCALING.md",
+      "keywords": ["scale", "production", "deployment", "performance", "optimization"],
+      "summary": "Guide to scaling Clipstream to TikTok-level traffic. Covers FAISS sharding, Redis clustering, CDN deployment, and event buffering.",
+      "topics": [
+        "FAISS GPU acceleration",
+        "Redis clustering",
+        "CDN for videos",
+        "Event buffering",
+        "Database sharding",
+        "Load balancing"
+      ],
+      "capacity": {
+        "videos": "Billions",
+        "events_per_second": "Millions",
+        "concurrent_users": "Unlimited"
+      }
+    },
+
+    {
+      "id": "api_reference",
+      "category": "api",
+      "title": "API Endpoints Reference",
+      "file": "api/ENDPOINTS.md",
+      "keywords": ["api", "endpoints", "rest", "http", "reference"],
+      "summary": "Complete API reference with all endpoints, request/response formats, and examples.",
+      "categories": [
+        "Infinite Feed",
+        "Real-time Events",
+        "Embeddings",
+        "Authentication",
+        "Analytics"
+      ]
+    },
+
+    {
+      "id": "testing_guide",
+      "category": "help",
+      "title": "Testing Guide",
+      "file": "help/TESTING.md",
+      "keywords": ["test", "testing", "qa", "validation", "multi-user"],
+      "summary": "Multi-user testing scenarios for ML algorithm validation. Covers automated tests, manual testing, and performance benchmarks.",
+      "topics": [
+        "Multi-user scenarios",
+        "ML validation",
+        "Automated tests",
+        "Performance benchmarks",
+        "Frontend testing"
+      ]
+    },
+
+    {
+      "id": "troubleshooting",
+      "category": "help",
+      "title": "Troubleshooting Guide",
+      "file": "help/TROUBLESHOOTING.md",
+      "keywords": ["troubleshoot", "debug", "error", "fix", "problem", "issue"],
+      "summary": "Common issues and solutions. Covers Docker, Redis, SSE, video playback, and performance problems.",
+      "common_issues": [
+        "Redis not connected",
+        "SSE not working",
+        "Videos not playing",
+        "Slow searches",
+        "Out of memory"
+      ]
+    },
+
+    {
+      "id": "architecture_overview",
+      "category": "architecture",
+      "title": "System Architecture",
+      "file": "architecture/OVERVIEW.md",
+      "keywords": ["architecture", "system", "design", "overview", "structure"],
+      "summary": "High-level architecture overview showing all components and their interactions.",
+      "components": [
+        "Frontend (Swipe UI)",
+        "Backend APIs",
+        "SurrealDB",
+        "Redis Pub/Sub",
+        "FAISS Index",
+        "ML Algorithm",
+        "Event Buffer"
+      ]
+    }
+  ],
+
+  "faq": [
+    {
+      "question": "How do I start the platform?",
+      "answer": "Run `bash START_TIKTOK_PLATFORM.sh` from the project root.",
+      "doc_ref": "quick_start"
+    },
+    {
+      "question": "How fast is the embedding search?",
+      "answer": "~2ms for 1,000 videos, ~50ms for 1 million videos using FAISS.",
+      "doc_ref": "embeddings_guide"
+    },
+    {
+      "question": "Can I use real TikTok videos?",
+      "answer": "Yes, use the TikTok scraper with yt-dlp. See TikTok Ingestion guide.",
+      "doc_ref": "tiktok_ingestion"
+    },
+    {
+      "question": "How does the ML algorithm work?",
+      "answer": "3-component scoring: User Interest (60%) + Video Quality (30%) + Exploration (10%).",
+      "doc_ref": "ml_algorithm"
+    },
+    {
+      "question": "Is there collision in embeddings?",
+      "answer": "No, SHA256 hashing ensures zero collisions (probability ~0%).",
+      "doc_ref": "embeddings_guide"
+    },
+    {
+      "question": "How do I test the ML algorithm?",
+      "answer": "Use multi-user testing scenarios in the Testing Guide.",
+      "doc_ref": "testing_guide"
+    },
+    {
+      "question": "What's the maximum scale?",
+      "answer": "Billions of videos, millions of events/second. See Scaling Guide.",
+      "doc_ref": "scaling"
+    },
+    {
+      "question": "How do I fix SSE not working?",
+      "answer": "Check Redis is running and CORS settings. See Troubleshooting Guide.",
+      "doc_ref": "troubleshooting"
+    }
+  ],
+
+  "quicklinks": {
+    "start": "help/QUICK_START.md",
+    "api": "api/ENDPOINTS.md",
+    "embeddings": "guides/EMBEDDINGS.md",
+    "testing": "help/TESTING.md",
+    "troubleshooting": "help/TROUBLESHOOTING.md",
+    "architecture": "architecture/OVERVIEW.md",
+    "scaling": "architecture/SCALING.md"
+  },
+
+  "chatbot_prompts": {
+    "greeting": "I'm the Clipstream Assistant. I can help with setup, API usage, ML algorithm, embeddings, and troubleshooting. What would you like to know?",
+    "unknown": "I don't have specific information on that. Check the documentation index or ask about: setup, API, ML algorithm, embeddings, scaling, or troubleshooting.",
+    "suggestions": [
+      "How do I start the platform?",
+      "How do embeddings work?",
+      "How do I test the ML algorithm?",
+      "What are the API endpoints?",
+      "How do I scale to production?"
+    ]
+  },
+
+  "search_index": {
+    "setup": ["quick_start", "troubleshooting"],
+    "embeddings": ["embeddings_guide", "api_reference"],
+    "ml": ["ml_algorithm", "realtime_ml", "testing_guide"],
+    "api": ["api_reference", "infinite_feed", "realtime_ml", "embeddings_guide"],
+    "scaling": ["scaling", "architecture_overview"],
+    "tiktok": ["tiktok_ingestion"],
+    "troubleshooting": ["troubleshooting", "quick_start"]
+  }
+}
