@@ -68,6 +68,32 @@ export function EnhancedMainApp() {
     fetchUnreadCounts();
   }, [refreshKey]);
 
+  // Subscribe to server-sent events for live updates (notifications/messages)
+  useEffect(() => {
+    if (!user?.id) return;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+    const notifUrl = `${API_BASE}/api/v1/notifications/stream?userId=${user.id}`;
+    const msgUrl = `${API_BASE}/api/v1/messages/stream?userId=${user.id}`;
+
+    const notifEs = new EventSource(notifUrl);
+    notifEs.onmessage = () => {
+      // a notification arrived; refresh counts
+      fetchUnreadCounts();
+    };
+    notifEs.onerror = (e) => {
+      console.warn('Notification SSE error (main app)', e);
+    };
+
+    const msgEs = new EventSource(msgUrl);
+    msgEs.onmessage = () => fetchUnreadCounts();
+    msgEs.onerror = (e) => console.warn('Messages SSE error (main app)', e);
+
+    return () => {
+      notifEs.close();
+      msgEs.close();
+    };
+  }, [user?.id]);
+
   const fetchUnreadCounts = async () => {
     if (!user?.id) {
       setMessagesUnread(0);
@@ -199,10 +225,10 @@ export function EnhancedMainApp() {
         return <SearchAndDiscover />;
 
       case 'messages':
-        return <DirectMessages />;
+        return <DirectMessages onUnreadChange={setMessagesUnread} />;
 
       case 'notifications':
-        return <NotificationCenter />;
+        return <NotificationCenter onUnreadChange={setNotificationsUnread} />;
 
       case 'dashboard':
         return <UserDashboard />;
