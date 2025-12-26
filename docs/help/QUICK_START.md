@@ -1,3 +1,9 @@
+<!--
+Version: v20251226
+Last-updated: 2025-12-26
+Status: canonical
+-->
+
 # 🚀 Quick Start Guide
 
 Get Clipstream running in 5 minutes.

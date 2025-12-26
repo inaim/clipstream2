@@ -1,3 +1,9 @@
+<!--
+Version: v20251226
+Last-updated: 2025-12-26
+Status: canonical
+-->
+
 # 🧪 ClipStream Testing Guide
 
 Complete guide for testing the ClipStream backend and frontend.

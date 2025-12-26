@@ -1,3 +1,9 @@
+<!--
+Version: v20251226
+Last-updated: 2025-12-26
+Status: canonical
+-->
+
 # 📚 Clipstream Documentation
 
 Complete documentation for the Clipstream TikTok-style video platform.

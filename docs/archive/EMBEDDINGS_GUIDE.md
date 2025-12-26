@@ -9,6 +9,9 @@ A **high-performance, collision-free embedding system** for TikTok-scale video r
 - ✅ **Redis caching** - Hot embeddings cached for instant access
 - ✅ **Incremental updates** - No full index rebuilds
 - ✅ **GPU support** - Optional GPU acceleration for massive scale
+- ✅ **Default category embeddings** - 99% memory savings for new/unpopular videos (NEW!)
+- ✅ **Frequency filtering** - Only embed videos with 10+ interactions (NEW!)
+- ✅ **Expirable embeddings (TTL)** - Auto-remove inactive embeddings after 30 days (NEW!)
 
 ---
 
@@ -87,6 +90,260 @@ curl "http://localhost:8080/api/v1/embeddings/similar/video:5?k=10" | jq
 ```
 
 **Search is FAST**: ~2ms for 1,000 videos, ~10ms for 1M videos (with FAISS)
+
+---
+
+## 🆕 Default Category Embeddings (Monolith-Inspired)
+
+**NEW!** Based on ByteDance's Monolith system used in TikTok.
+
+### What Are Default Embeddings?
+
+Instead of creating a unique embedding for **every single video**, we use **category-based default embeddings** for new/unpopular videos.
+
+**Why?**
+- Saves 80%+ memory
+- New videos get reasonable recommendations immediately
+- Only popular videos get dedicated embeddings
+
+### How It Works
+
+```
+Video uploaded → Check view count
+
+If views < 10:
+    Use DEFAULT_EMBEDDING[category]  # "sports", "music", etc.
+Else:
+    Create dedicated embedding
+```
+
+### Get Available Categories
+
+```bash
+curl "http://localhost:8080/api/v1/embeddings/categories" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "categories": [
+    "sports", "comedy", "music", "gaming", "education",
+    "cooking", "travel", "fashion", "tech", "dance",
+    "art", "pets", "news", "fitness", "diy", "general"
+  ],
+  "total": 16,
+  "message": "These categories have pre-computed default embeddings"
+}
+```
+
+### Get Default Embedding for Category
+
+```bash
+curl "http://localhost:8080/api/v1/embeddings/default/sports" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "category": "sports",
+  "embedding": [0.123, -0.456, 0.789, ...],  // 128 values
+  "dimension": 128,
+  "message": "Default embedding for sports category"
+}
+```
+
+### Benefits
+
+**Memory Savings:**
+- **Before:** 1M videos × 128 floats × 4 bytes = 512 MB
+- **After:** 10K popular videos + 16 category defaults = ~5 MB
+- **Savings:** 99% memory reduction!
+
+**Better Cold Start:**
+- New videos immediately get recommendations based on category
+- No need to wait for engagement before recommendations work
+
+**Monolith-Scale:**
+- TikTok has billions of videos
+- Only millions are popular
+- Default embeddings make this feasible
+
+---
+
+## 🆕 Frequency Filtering (Monolith-Inspired)
+
+**NEW!** Only create dedicated embeddings for popular videos.
+
+### What is Frequency Filtering?
+
+Instead of creating embeddings for every video immediately, we only create them for videos with **>= 10 interactions** (views, likes, etc.).
+
+**Why?**
+- Most videos have very few views (long tail distribution)
+- Creating embeddings for unpopular videos wastes memory
+- Reduces embedding table size by 80-90%
+
+### How It Works
+
+```
+Video interaction logged →
+
+If total_interactions >= 10:
+    Create dedicated embedding
+Else:
+    Use DEFAULT_EMBEDDING[category]
+```
+
+### Check if Video Should Have Embedding
+
+```bash
+# Check with interaction count
+curl "http://localhost:8080/api/v1/embeddings/should-create/video:5?interaction_count=3" | jq
+```
+
+**Response (< 10 interactions):**
+```json
+{
+  "success": true,
+  "video_id": "video:5",
+  "should_create_embedding": false,
+  "min_interactions_threshold": 10,
+  "interaction_count": 3,
+  "message": "Use default category embedding for video:5"
+}
+```
+
+**Response (>= 10 interactions):**
+```json
+{
+  "success": true,
+  "video_id": "video:5",
+  "should_create_embedding": true,
+  "min_interactions_threshold": 10,
+  "interaction_count": 15,
+  "message": "Create dedicated embedding for video:5"
+}
+```
+
+### Memory Savings Example
+
+**Long-tail distribution (typical for TikTok):**
+- 1M total videos
+- 900K videos have < 10 views (90%)
+- 100K videos have >= 10 views (10%)
+
+**Before frequency filtering:**
+- 1M embeddings × 128 floats × 4 bytes = 512 MB
+
+**After frequency filtering:**
+- 100K embeddings + 16 category defaults = ~51 MB
+- **Savings: 90% memory reduction!**
+
+### Real-World Stats
+
+TikTok's distribution:
+- Billions of videos uploaded
+- ~90% have < 100 views
+- ~1% are viral (millions of views)
+
+Frequency filtering is **critical** for billion-scale deployment.
+
+---
+
+## 🆕 Expirable Embeddings with TTL (Monolith-Inspired)
+
+**NEW!** Automatically remove embeddings for inactive videos.
+
+### What are Expirable Embeddings?
+
+Embeddings for videos that haven't been accessed in **30 days** (configurable) are automatically removed.
+
+**Why?**
+- Inactive users/videos waste memory
+- Most content becomes stale after 30 days
+- Keeps memory bounded at billion-scale
+
+### How It Works
+
+```
+Video accessed →
+  Update last_accessed[video_id] = now
+
+Daily cleanup task →
+  For each embedding:
+    If (now - last_accessed) > 30 days:
+      Remove embedding
+```
+
+### Manually Trigger Cleanup
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/embeddings/cleanup-expired" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "removed_count": 1523,
+  "ttl_days": 30,
+  "message": "Cleaned up 1523 expired embeddings"
+}
+```
+
+### Production Setup (Cron Job)
+
+```bash
+# Add to crontab (run daily at 3am)
+0 3 * * * curl -X POST http://localhost:8080/api/v1/embeddings/cleanup-expired
+```
+
+### Memory Impact
+
+**Example: 1 year of operation**
+- Videos uploaded: 10M
+- Videos active in last 30 days: 500K (5%)
+- Inactive videos: 9.5M (95%)
+
+**Without TTL:**
+- 10M embeddings = 5 GB memory
+
+**With 30-day TTL:**
+- 500K active embeddings = 250 MB memory
+- **Savings: 95% memory reduction!**
+
+### Configuration
+
+```python
+# In backend/app/embeddings.py
+table = CollisionlessEmbeddingTable(
+    ttl_days=30  # Adjust as needed
+)
+```
+
+**Common TTL values:**
+- **7 days:** Trending content platforms
+- **30 days:** Social media (TikTok, Instagram)
+- **90 days:** Professional networks (LinkedIn)
+- **Never (0):** Archive/historical content
+
+### Check Stats
+
+```bash
+curl "http://localhost:8080/api/v1/embeddings/stats" | jq
+```
+
+**Response includes TTL stats:**
+```json
+{
+  "total_vectors": 15234,
+  "ttl_days": 30,
+  "expired_count": 8456,
+  "tracked_access_times": 15234
+}
+```
 
 ---
 
@@ -174,6 +431,73 @@ curl -X POST http://localhost:8080/api/v1/embeddings/batch \
     {"video_id": "video:2", "category": "comedy"},
     {"video_id": "video:3", "category": "music"}
   ]'
+```
+
+### Get Available Categories (NEW!)
+
+```bash
+curl "http://localhost:8080/api/v1/embeddings/categories" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "categories": ["sports", "comedy", "music", ...],
+  "total": 16
+}
+```
+
+### Get Default Category Embedding (NEW!)
+
+```bash
+curl "http://localhost:8080/api/v1/embeddings/default/sports" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "category": "sports",
+  "embedding": [0.123, -0.456, ...],
+  "dimension": 128
+}
+```
+
+### Check if Should Create Embedding (NEW!)
+
+```bash
+# Frequency filtering: Check if video is popular enough
+curl "http://localhost:8080/api/v1/embeddings/should-create/video:5?interaction_count=15" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "video_id": "video:5",
+  "should_create_embedding": true,
+  "min_interactions_threshold": 10,
+  "interaction_count": 15,
+  "message": "Create dedicated embedding for video:5"
+}
+```
+
+### Cleanup Expired Embeddings (NEW!)
+
+```bash
+# Remove embeddings not accessed in 30 days
+curl -X POST "http://localhost:8080/api/v1/embeddings/cleanup-expired" | jq
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "removed_count": 1523,
+  "ttl_days": 30,
+  "message": "Cleaned up 1523 expired embeddings"
+}
 ```
 
 ### Search Similar Videos
