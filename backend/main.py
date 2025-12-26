@@ -31,6 +31,7 @@ from api import auth, social_auth, users, upload, feed, videos, events
 from api import notifications, messages, search, sounds, admin, analytics, interests
 from api import graphql as graphql_api
 from api import infinite_feed, realtime_events, embeddings_api, tiktok_ingestion
+from app.tiktok_auto_ingestion import start_auto_ingestion, stop_auto_ingestion
 from starlette.responses import RedirectResponse
 
 # Import startup and ingestion modules
@@ -135,6 +136,27 @@ async def lifespan(app: FastAPI):
             logger.info("Demo video ingestion disabled (set INGEST_DEMO_VIDEOS=true to enable)")
 
         # ============================================
+        # STEP 3.5: Start TikTok Auto-Ingestion
+        # ============================================
+        # Auto-start TikTok video scraping (enabled by default, disable with env flag)
+        enable_tiktok = os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "true").lower() in ("1", "true", "yes")
+
+        if enable_tiktok:
+            try:
+                logger.info("\n[STEP 3.5] Starting TikTok auto-ingestion with browser scraping...")
+                await start_auto_ingestion()
+                logger.info("✅ TikTok auto-ingestion service started (browser scraping enabled)")
+                logger.info("   - Scraping trending hashtags every 5 minutes")
+                logger.info("   - Browser: Headless Chromium with infinite scroll")
+                logger.info("   - Sources: #fyp, #viral, #trending, etc.")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to start TikTok auto-ingestion: {e}")
+                logger.warning("   Make sure Playwright is installed: playwright install chromium")
+        else:
+            logger.info("\n[STEP 3.5] TikTok auto-ingestion disabled")
+            logger.info("   Set ENABLE_TIKTOK_AUTO_INGEST=true to enable")
+
+        # ============================================
         # STEP 4: Platform Ready
         # ============================================
         logger.info("\n[STEP 4] Platform ready for beta")
@@ -176,6 +198,15 @@ async def lifespan(app: FastAPI):
             logger.info("Async SurrealDB client closed")
     except Exception as e:
         logger.warning(f"Failed to close async SurrealDB client: {e}")
+
+    # Stop TikTok auto-ingestion if it was started
+    enable_tiktok = os.getenv("ENABLE_TIKTOK_AUTO_INGEST", "true").lower() in ("1", "true", "yes")
+    if enable_tiktok:
+        try:
+            await stop_auto_ingestion()
+            logger.info("TikTok auto-ingestion service stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop TikTok auto-ingestion: {e}")
     logger.info("=" * 60)
 
 # Create FastAPI app

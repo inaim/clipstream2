@@ -35,14 +35,38 @@ else
     echo -e "${YELLOW}⚠${NC}  SurrealDB might not be ready yet (continuing anyway)"
 fi
 
-# Check Redis
-if redis-cli ping > /dev/null 2>&1; then
+# Check Redis (prefer container ping to avoid missing local redis-cli)
+echo "🔍 Checking Redis..."
+check_redis() {
+    # 1) Use local redis-cli if present
+    if command -v redis-cli > /dev/null 2>&1; then
+        if redis-cli ping > /dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    # 2) Try container exec
+    if command -v docker-compose > /dev/null 2>&1; then
+        if docker-compose ps redis >/dev/null 2>&1; then
+            if docker-compose exec -T redis redis-cli ping > /dev/null 2>&1; then
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+if check_redis; then
     echo -e "${GREEN}✓${NC} Redis is ready on port 6379"
 else
     echo -e "${RED}❌ Redis is not responding${NC}"
     echo "Trying to start Redis manually..."
     docker-compose up -d redis
     sleep 2
+    if check_redis; then
+        echo -e "${GREEN}✓${NC} Redis started and responding"
+    else
+        echo -e "${RED}❌ Redis still not responding; install redis-cli or check Docker${NC}"
+    fi
 fi
 
 # Check if yt-dlp is installed
