@@ -52,8 +52,8 @@ frontend_tiktok_swipe.html
 **Root Documentation (8 files):**
 ```
 DOCS_ORGANIZED.md (NEW)
-FINAL_COMPLETE.md
-EMBEDDINGS_GUIDE.md
+docs/README.md
+docs/guides/EMBEDDINGS.md
 TIKTOK_COMPLETE_SUMMARY.md
 TIKTOK_REALTIME_GUIDE.md
 START_HERE_TIKTOK.md

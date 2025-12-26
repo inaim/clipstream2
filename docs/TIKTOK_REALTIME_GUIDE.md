@@ -1,3 +1,9 @@
+<!--
+Version: v20251226
+Last-updated: 2025-12-26
+Status: canonical
+-->
+
 # 🎬 TikTok Real-time ML Feed - Complete Guide
 
 ## What's New - TikTok-Style Architecture

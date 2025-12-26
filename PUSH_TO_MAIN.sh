@@ -24,8 +24,9 @@ git add backend/STARTUP_LIFECYCLE.md
 git add backend/IMPLEMENTATION_SUMMARY.md
 git add backend/TESTING_GUIDE.md
 git add backend/seed_real_videos.py
-git add REAL_VIDEOS_READY.md
-git add READY_TO_PUSH.md
+git add docs/TIKTOK_COMPLETE_SUMMARY.md
+git add docs/help/QUICK_START.md
+git add docs/README.md
 git add TEST_NOW.sh
 
 echo "✅ Files staged"

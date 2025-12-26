@@ -1,4 +1,10 @@
-  # ✨ TikTok-Style Real-time ML Platform - COMPLETE
+<!--
+Version: v20251226
+Last-updated: 2025-12-26
+Status: canonical
+-->
+
+# ✨ TikTok-Style Real-time ML Platform - COMPLETE
 
 ## What You Wanted
 
