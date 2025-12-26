@@ -20,7 +20,7 @@ echo -e "${GREEN}✓${NC} Docker is running"
 
 # Ports (override here if you mapped differently)
 SURREAL_PORT=${SURREAL_PORT:-8003}
-REDIS_PORT=${REDIS_PORT:-6380}
+REDIS_PORT=${REDIS_PORT:-6379}
 
 # Start SurrealDB and Redis
 echo ""
@@ -109,4 +109,4 @@ except ImportError:
     sys.exit(1)
 PYCODE
 
-cd backend && python3 main.py
+cd backend && ../.clipstream_venv/bin/python3 main.py
