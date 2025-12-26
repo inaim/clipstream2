@@ -31,3 +31,5 @@ aioredis
 
 # Additional runtime deps
 numpy
+playwright
+yt-dlp
