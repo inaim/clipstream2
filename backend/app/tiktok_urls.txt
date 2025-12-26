@@ -1,0 +1,29 @@
+# TikTok Video URLs - Manual Fallback List
+# Format: URL|category
+# Replace these with real, working TikTok video URLs
+
+# Example URLs (these are just examples - replace with actual working URLs):
+# https://www.tiktok.com/@gordonramsayofficial/video/7330819518867598634|cooking
+# https://www.tiktok.com/@nba/video/7330567890123456789|sports
+# https://www.tiktok.com/@therock/video/7330987654321098765|fitness
+
+# TO ADD REAL URLS:
+# 1. Go to TikTok.com
+# 2. Find a popular video
+# 3. Copy the full URL (should be like: https://www.tiktok.com/@username/video/1234567890)
+# 4. Paste here with category: URL|category
+# 5. One URL per line
+
+# Examples of popular accounts to get videos from:
+# - @gordonramsayofficial (cooking)
+# - @nba (sports)
+# - @therock (fitness/motivation)
+# - @khaby.lame (comedy)
+# - @zachking (magic/creative)
+# - @addisonre (dance)
+# - @charlidamelio (dance)
+
+# Add your URLs below (remove the # to uncomment):
+
+# Real TikTok URLs (one per line)
+https://www.tiktok.com/@demi32751/video/7584183122296589599|trending
