@@ -60,25 +60,16 @@ echo "📚 Copying organized docs folder..."
 mkdir -p "$MAIN_REPO/docs"
 cp -r "$WORKTREE/docs/"* "$MAIN_REPO/docs/" && echo "  ✓ docs/ (RAG knowledge base)"
 
-# Copy root files
+# Copy important root files (docs are copied above)
 echo ""
-echo "📄 Copying root files..."
+echo "📄 Copying root assets..."
 
-cp "$WORKTREE/REAL_VIDEOS_READY.md" "$MAIN_REPO/" && echo "  ✓ REAL_VIDEOS_READY.md"
-cp "$WORKTREE/READY_TO_PUSH.md" "$MAIN_REPO/" && echo "  ✓ READY_TO_PUSH.md"
-cp "$WORKTREE/FINAL_SUMMARY.md" "$MAIN_REPO/" && echo "  ✓ FINAL_SUMMARY.md"
-cp "$WORKTREE/TIKTOK_REALTIME_GUIDE.md" "$MAIN_REPO/" && echo "  ✓ TIKTOK_REALTIME_GUIDE.md (NEW)"
-cp "$WORKTREE/TIKTOK_COMPLETE_SUMMARY.md" "$MAIN_REPO/" && echo "  ✓ TIKTOK_COMPLETE_SUMMARY.md (NEW)"
-cp "$WORKTREE/EMBEDDINGS_GUIDE.md" "$MAIN_REPO/" && echo "  ✓ EMBEDDINGS_GUIDE.md (NEW)"
-cp "$WORKTREE/FINAL_COMPLETE.md" "$MAIN_REPO/" && echo "  ✓ FINAL_COMPLETE.md (NEW)"
-cp "$WORKTREE/DOCS_ORGANIZED.md" "$MAIN_REPO/" && echo "  ✓ DOCS_ORGANIZED.md (NEW)"
-cp "$WORKTREE/DEPLOYMENT_CHECKLIST.md" "$MAIN_REPO/" && echo "  ✓ DEPLOYMENT_CHECKLIST.md (NEW)"
-cp "$WORKTREE/README_DEPLOYMENT.md" "$MAIN_REPO/" && echo "  ✓ README_DEPLOYMENT.md (NEW)"
-cp "$WORKTREE/QUICK_REFERENCE.md" "$MAIN_REPO/" && echo "  ✓ QUICK_REFERENCE.md (NEW)"
+# Copy frontend/demo and scripts
 cp "$WORKTREE/frontend_tiktok_swipe.html" "$MAIN_REPO/" && echo "  ✓ frontend_tiktok_swipe.html (NEW)"
 cp "$WORKTREE/TEST_NOW.sh" "$MAIN_REPO/" && echo "  ✓ TEST_NOW.sh"
 cp "$WORKTREE/START_TIKTOK_PLATFORM.sh" "$MAIN_REPO/" && echo "  ✓ START_TIKTOK_PLATFORM.sh (NEW)"
-cp "$WORKTREE/START_HERE_TIKTOK.md" "$MAIN_REPO/" && echo "  ✓ START_HERE_TIKTOK.md (NEW)"
+
+# Note: documentation files are copied from $WORKTREE/docs/ to $MAIN_REPO/docs/ above
 chmod +x "$MAIN_REPO/TEST_NOW.sh"
 chmod +x "$MAIN_REPO/START_TIKTOK_PLATFORM.sh"
 
