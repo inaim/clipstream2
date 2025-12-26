@@ -15,12 +15,17 @@ Features:
 import asyncio
 import logging
 import time
+import uuid
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-import json
+import shutil
+import hashlib
+import os
 
 from app.tiktok_scraper import TikTokScraper
-from db.client import get_db
+from app.tiktok_browser_scraper import TikTokBrowserScraper, scrape_tiktok_hashtags
+from db.surrealdb_client import db_client
+from utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +69,8 @@ class TikTokAutoIngestion:
         self,
         fetch_interval: int = FETCH_INTERVAL,
         videos_per_fetch: int = VIDEOS_PER_FETCH,
-        download_dir: str = DOWNLOAD_DIR
+        download_dir: str = DOWNLOAD_DIR,
+        use_browser: bool = True
     ):
         """
         Initialize auto-ingestion service.
@@ -73,13 +79,16 @@ class TikTokAutoIngestion:
             fetch_interval: Seconds between fetches (default: 300 = 5 minutes)
             videos_per_fetch: Videos to fetch per interval (default: 10)
             download_dir: Directory to store downloaded videos
+            use_browser: Use browser scraping for feed discovery (default: True)
         """
         self.fetch_interval = fetch_interval
         self.videos_per_fetch = videos_per_fetch
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
+        self.use_browser = use_browser
 
         self.scraper = TikTokScraper(download_dir=str(self.download_dir))
+        self.browser_scraper: Optional[TikTokBrowserScraper] = None
         self.is_running = False
         self.task: Optional[asyncio.Task] = None
 
@@ -95,9 +104,15 @@ class TikTokAutoIngestion:
             logger.warning("Auto-ingestion already running")
             return
 
+        # Initialize browser scraper if enabled
+        if self.use_browser:
+            self.browser_scraper = TikTokBrowserScraper(max_videos=self.videos_per_fetch)
+            await self.browser_scraper.start()
+            logger.info("Browser scraper initialized")
+
         self.is_running = True
         self.task = asyncio.create_task(self._run())
-        logger.info(f"Started TikTok auto-ingestion (interval: {self.fetch_interval}s)")
+        logger.info(f"Started TikTok auto-ingestion (interval: {self.fetch_interval}s, browser: {self.use_browser})")
 
     async def stop(self):
         """Stop the auto-ingestion service."""
@@ -112,6 +127,12 @@ class TikTokAutoIngestion:
                 await self.task
             except asyncio.CancelledError:
                 pass
+
+        # Close browser scraper if active
+        if self.browser_scraper:
+            await self.browser_scraper.close()
+            self.browser_scraper = None
+            logger.info("Browser scraper closed")
 
         logger.info("Stopped TikTok auto-ingestion")
 
@@ -169,6 +190,18 @@ class TikTokAutoIngestion:
                     failed_count += 1
                     continue
 
+                # Merge browser-scraped metadata if available
+                if "metadata" in url_data:
+                    browser_metadata = url_data["metadata"]
+                    # Prefer browser metadata for fields that might be more accurate
+                    video_info.setdefault("description", browser_metadata.get("description", ""))
+                    video_info.setdefault("creator", browser_metadata.get("creator", ""))
+                    video_info.setdefault("hashtags", browser_metadata.get("hashtags", []))
+                    if "view_count" in browser_metadata:
+                        video_info["view_count"] = browser_metadata["view_count"]
+                    if "like_count" in browser_metadata:
+                        video_info["like_count"] = browser_metadata["like_count"]
+
                 # Ingest into database
                 success = await self._ingest_video(video_info, url_data.get("category", "general"))
 
@@ -193,30 +226,42 @@ class TikTokAutoIngestion:
         """
         Get trending TikTok video URLs.
 
-        This is a placeholder. In production, you would:
-        1. Use TikTok API (requires API key)
-        2. Scrape TikTok trending page (requires web scraping)
-        3. Use a TikTok data provider service
+        Uses browser scraping if enabled, otherwise falls back to manual URL list.
 
         Returns:
             List of dicts with 'url' and 'category'
         """
-        # PLACEHOLDER: Return empty list
-        # In production, implement one of these:
+        # Option 1: Browser scraping (if enabled)
+        if self.use_browser and self.browser_scraper:
+            try:
+                logger.info("Using browser scraper to fetch trending videos")
 
-        # Option 1: TikTok API (requires approval)
-        # from TikTokApi import TikTokApi
-        # async with TikTokApi() as api:
-        #     trending = api.trending.videos(count=self.videos_per_fetch)
-        #     return [{"url": v.video.downloadAddr, "category": "trending"} for v in trending]
+                # Scrape from multiple hashtags for diversity
+                videos = await self.browser_scraper.scrape_multiple_hashtags(
+                    TRENDING_HASHTAGS,
+                    videos_per_hashtag=max(2, self.videos_per_fetch // len(TRENDING_HASHTAGS))
+                )
 
-        # Option 2: Web scraping (may violate TOS)
-        # urls = await scrape_tiktok_trending_page()
-        # return urls
+                if videos:
+                    # Convert to expected format
+                    url_list = []
+                    for video in videos[:self.videos_per_fetch]:
+                        url_list.append({
+                            "url": video["url"],
+                            "category": video.get("category", "general"),
+                            "metadata": video  # Pass full scraped metadata
+                        })
 
-        # Option 3: Manual URL list (for testing)
-        # Read from a file with TikTok URLs
-        url_file = self.download_dir / "tiktok_urls.txt"
+                    logger.info(f"Browser scraper found {len(url_list)} videos")
+                    return url_list
+                else:
+                    logger.warning("Browser scraper returned no videos, falling back to manual list")
+
+            except Exception as e:
+                logger.error(f"Browser scraping failed: {e}, falling back to manual list")
+
+        # Option 2: Manual URL list (fallback for testing)
+        url_file = Path(__file__).resolve().parent / "tiktok_urls.txt"
         if url_file.exists():
             urls = []
             with open(url_file, 'r') as f:
@@ -228,9 +273,12 @@ class TikTokAutoIngestion:
                             "url": parts[0],
                             "category": parts[1] if len(parts) > 1 else "general"
                         })
-            return urls[:self.videos_per_fetch]
 
-        logger.warning("No TikTok URL source configured. See documentation.")
+            if urls:
+                logger.info(f"Using manual URL list: {len(urls)} videos")
+                return urls[:self.videos_per_fetch]
+
+        logger.warning("No TikTok URL source available. Configure browser scraping or add tiktok_urls.txt")
         return []
 
     async def _ingest_video(self, video_info: Dict[str, Any], category: str) -> bool:
@@ -245,41 +293,71 @@ class TikTokAutoIngestion:
             True if ingested successfully
         """
         try:
-            db = await get_db()
-
-            # Create video record
-            video_data = {
-                "url": video_info.get("video_path", ""),
-                "title": video_info.get("title", "Unknown"),
-                "category": category,
-                "duration": video_info.get("duration", 0),
-                "creator_id": f"tiktok:{video_info.get('creator', 'unknown')}",
-                "tags": video_info.get("hashtags", []),
-                "view_count": video_info.get("view_count", 0),
-                "like_count": video_info.get("like_count", 0),
-                "comment_count": video_info.get("comment_count", 0),
-                "share_count": video_info.get("share_count", 0),
-                "description": video_info.get("description", ""),
-                "thumbnail": video_info.get("thumbnail", ""),
-                "upload_date": video_info.get("upload_date", ""),
-                "source": "tiktok",
-                "auto_ingested": True,
-                "ingested_at": time.time()
-            }
-
-            # Insert into database
-            result = await db.create("video", video_data)
-
-            if result:
-                logger.debug(f"Ingested video: {result[0]['id']}")
-                return True
-            else:
-                logger.error("Failed to insert video into database")
+            video_path = Path(video_info.get("video_path", ""))
+            if not video_path.exists():
+                logger.error(f"Video file missing: {video_path}")
                 return False
+
+            dest_path, cdn_url = self._store_in_uploads(video_path)
+
+            # Compute hash if missing
+            content_hash = video_info.get("content_hash")
+            if not content_hash:
+                content_hash = self._compute_hash(dest_path)
+
+            created = await db_client.create_video(
+                user_id="user:tiktok_auto",
+                title=video_info.get("title", "TikTok Video"),
+                cdn_url=cdn_url,
+                filename=dest_path.name,
+                content_hash=content_hash,
+                file_size=dest_path.stat().st_size,
+                status="active",
+                description=video_info.get("description", ""),
+                tags=video_info.get("hashtags", []),
+                category=category,
+                source="tiktok",
+                auto_ingested=True,
+                source_metadata={
+                    "creator": video_info.get("creator"),
+                    "creator_name": video_info.get("creator_name"),
+                    "view_count": video_info.get("view_count"),
+                    "like_count": video_info.get("like_count"),
+                    "comment_count": video_info.get("comment_count"),
+                    "share_count": video_info.get("share_count"),
+                    "upload_date": video_info.get("upload_date"),
+                }
+            )
+
+            if created:
+                logger.info(f"Ingested video {created.get('id')} ({dest_path.name})")
+                return True
+
+            logger.error("Failed to insert video into database")
+            return False
 
         except Exception as e:
             logger.error(f"Error ingesting video: {e}")
             return False
+
+    def _store_in_uploads(self, source: Path) -> (Path, str):
+        """Copy the downloaded video into the uploads directory and return (path, cdn_url)."""
+        uploads_dir = Path(settings.UPLOAD_DIR)
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        ext = source.suffix or ".mp4"
+        dest_name = f"tiktok_{uuid.uuid4().hex}{ext}"
+        dest_path = uploads_dir / dest_name
+        shutil.copy(source, dest_path)
+        cdn_url = f"/uploads/{dest_name}"
+        return dest_path, cdn_url
+
+    def _compute_hash(self, file_path: Path) -> str:
+        """Compute SHA256 hash for a file."""
+        h = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
 
     def get_stats(self) -> Dict[str, Any]:
         """Get ingestion statistics."""
@@ -287,6 +365,7 @@ class TikTokAutoIngestion:
             "is_running": self.is_running,
             "fetch_interval": self.fetch_interval,
             "videos_per_fetch": self.videos_per_fetch,
+            "use_browser": self.use_browser,
             "total_fetched": self.total_fetched,
             "total_ingested": self.total_ingested,
             "total_failed": self.total_failed,
