@@ -30,6 +30,7 @@ from db.surrealdb_client import db_client
 from surrealdb import AsyncSurreal
 from api import auth, social_auth, users, upload, feed, videos, events
 from api import notifications, messages, search, sounds, admin, analytics, interests
+from api import follows
 from api import graphql as graphql_api
 from api import infinite_feed, realtime_events, embeddings_api, tiktok_ingestion
 from app.tiktok_auto_ingestion import start_auto_ingestion, stop_auto_ingestion
@@ -293,6 +294,7 @@ app.include_router(search.router, prefix="/api/v1", tags=["Search & Discover"])
 app.include_router(sounds.router, prefix="/api/v1/sounds", tags=["Sounds"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+app.include_router(follows.router, prefix="/api", tags=["Social"])
 
 # Mount GraphQL endpoint at /graphql for querying videos and feed
 app.mount("/graphql", graphql_api.graphql_app)

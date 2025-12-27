@@ -197,8 +197,8 @@ export const socialApi = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        follower_id: parseInt(followerId.replace('user:', '')), 
-        following_id: parseInt(followingId.replace('user:', ''))
+        follower_id: followerId.replace('user:', ''), 
+        following_id: followingId.replace('user:', '')
       }),
     });
     return handleResponse(response);
@@ -215,8 +215,8 @@ export const socialApi = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ 
-        follower_id: parseInt(followerId.replace('user:', '')), 
-        following_id: parseInt(followingId.replace('user:', ''))
+        follower_id: followerId.replace('user:', ''), 
+        following_id: followingId.replace('user:', '')
       }),
     });
     return handleResponse(response);
@@ -233,8 +233,17 @@ export const socialApi = {
     const response = await fetch(`${API_BASE_URL}/api/follows?${params}`, {
       headers: getAuthHeader(),
     });
-    const data = await handleResponse<{ data: any }>(response);
-    return !!data.data;
+    const data = await handleResponse<any>(response);
+    if (Array.isArray(data)) {
+      return data.length > 0;
+    }
+    if (data && Array.isArray(data.data)) {
+      return data.data.length > 0;
+    }
+    if (data && data.data) {
+      return true;
+    }
+    return false;
   },
 
   /**
@@ -336,4 +345,3 @@ export const db = {
 };
 
 export default db;
-

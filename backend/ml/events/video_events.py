@@ -12,12 +12,72 @@ These events are stored in SurrealDB and used to train the scoring model.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
+
 import logging
+
 from enum import Enum
+ 
 
 logger = logging.getLogger(__name__)
 
+def normalize_id(record_id: Union[str, Dict], table_prefix: str = "") -> str:
+
+    """
+
+    Normalize SurrealDB record ID to just the ID part.
+
+ 
+
+    SurrealDB can return IDs in different formats:
+
+    - String: "video:123" or "123"
+
+    - Dict: {"table_name": "video", "id": "123"}
+
+ 
+
+    Args:
+
+        record_id: Record ID in any format
+
+        table_prefix: Expected table prefix (e.g., "videos:", "users:")
+
+ 
+
+    Returns:
+
+        id_part: Just the ID part without table prefix
+
+    """
+
+    if isinstance(record_id, dict):
+
+        # Dict format: {"table_name": "video", "id": "123"}
+
+        return str(record_id.get("id", ""))
+
+    elif isinstance(record_id, str):
+
+        # String format: "video:123" or "123"
+
+        if table_prefix and record_id.startswith(table_prefix):
+
+            return record_id[len(table_prefix):]
+
+        # Try common prefixes
+
+        for prefix in ["videos:", "users:", "video:", "user:"]:
+
+            if record_id.startswith(prefix):
+
+                return record_id[len(prefix):]
+
+        return record_id
+
+    else:
+
+        return str(record_id)
 
 class EventType(Enum):
     """Types of video events to track."""
@@ -55,8 +115,8 @@ class VideoEventRecorder:
     {
         "id": "event:<uuid>",
         "type": "view|watch|like|skip|etc",
-        "video_id": "video:<id>",
-        "user_id": "user:<id>",
+        "video_id": normalize_id(video_id, "videos:"),
+        "user_id": normalize_id(user_id, "users:"),
         "timestamp": datetime,
         "metadata": {
             "watch_time": seconds,
@@ -106,9 +166,10 @@ class VideoEventRecorder:
             }
         )
 
-        # Increment view count on video
+        # Increment view count on video (use type::thing to support dict ids)
         await self.db.query(
-            f"UPDATE {video_id} SET view_count += 1, updated_at = time::now()"
+            "UPDATE type::thing('video', $vid) SET view_count += 1, updated_at = time::now()",
+            {"vid": normalize_id(video_id, "video:")}
         )
 
         return event
@@ -157,7 +218,8 @@ class VideoEventRecorder:
         if progress >= 0.95:
             # Count as a completion
             await self.db.query(
-                f"UPDATE {video_id} SET completion_count += 1, updated_at = time::now()"
+                "UPDATE type::thing('video', $vid) SET completion_count += 1, updated_at = time::now()",
+                {"vid": normalize_id(video_id, "video:")}
             )
 
         return event
@@ -191,15 +253,18 @@ class VideoEventRecorder:
         # Update corresponding counters
         if event_type == EventType.LIKE:
             await self.db.query(
-                f"UPDATE {video_id} SET like_count += 1, updated_at = time::now()"
+                "UPDATE type::thing('video', $vid) SET like_count += 1, updated_at = time::now()",
+                {"vid": normalize_id(video_id, "video:")}
             )
         elif event_type == EventType.COMMENT:
             await self.db.query(
-                f"UPDATE {video_id} SET comment_count += 1, updated_at = time::now()"
+                "UPDATE type::thing('video', $vid) SET comment_count += 1, updated_at = time::now()",
+                {"vid": normalize_id(video_id, "video:")}
             )
         elif event_type == EventType.SHARE:
             await self.db.query(
-                f"UPDATE {video_id} SET share_count += 1, updated_at = time::now()"
+                "UPDATE type::thing('video', $vid) SET share_count += 1, updated_at = time::now()",
+                {"vid": normalize_id(video_id, "video:")}
             )
 
         return event
@@ -295,8 +360,8 @@ class VideoEventRecorder:
         query = """
             CREATE video_events CONTENT {
                 type: $type,
-                video_id: type::thing('videos', $video_id),
-                user_id: type::thing('users', $user_id),
+                video_id: type::thing('video', $video_id),
+                user_id: type::thing('user', $user_id),
                 timestamp: time::now(),
                 metadata: $metadata
             }
@@ -304,8 +369,8 @@ class VideoEventRecorder:
 
         result = await self.db.query(query, {
             "type": event_type.value,
-            "video_id": video_id.replace("videos:", ""),
-            "user_id": user_id.replace("users:", ""),
+            "video_id": normalize_id(video_id, "video:"),
+            "user_id": normalize_id(user_id, "user:"),
             "metadata": metadata
         })
 
@@ -334,7 +399,7 @@ class VideoEventRecorder:
             types_filter = ", ".join([f"'{et.value}'" for et in event_types])
             query = f"""
                 SELECT * FROM video_events
-                WHERE user_id = type::thing('users', $user_id)
+                WHERE user_id = type::thing('user', $user_id)
                 AND type IN [{types_filter}]
                 ORDER BY timestamp DESC
                 LIMIT {limit}
@@ -342,13 +407,13 @@ class VideoEventRecorder:
         else:
             query = f"""
                 SELECT * FROM video_events
-                WHERE user_id = type::thing('users', $user_id)
+                WHERE user_id = type::thing('user', $user_id)
                 ORDER BY timestamp DESC
                 LIMIT {limit}
             """
 
         result = await self.db.query(query, {
-            "user_id": user_id.replace("users:", "")
+            "user_id": normalize_id(user_id, "user:")
         })
 
         return result if result else []
@@ -374,7 +439,7 @@ class VideoEventRecorder:
             types_filter = ", ".join([f"'{et.value}'" for et in event_types])
             query = f"""
                 SELECT * FROM video_events
-                WHERE video_id = type::thing('videos', $video_id)
+                WHERE video_id = type::thing('video', $video_id)
                 AND type IN [{types_filter}]
                 ORDER BY timestamp DESC
                 LIMIT {limit}
@@ -382,13 +447,13 @@ class VideoEventRecorder:
         else:
             query = f"""
                 SELECT * FROM video_events
-                WHERE video_id = type::thing('videos', $video_id)
+                WHERE video_id = type::thing('video', $video_id)
                 ORDER BY timestamp DESC
                 LIMIT {limit}
             """
 
         result = await self.db.query(query, {
-            "video_id": video_id.replace("videos:", "")
+            "video_id": normalize_id(video_id, "video:")
         })
 
         return result if result else []
@@ -411,13 +476,13 @@ class VideoEventRecorder:
         # Get events from last 24 hours
         query = """
             SELECT type, timestamp FROM video_events
-            WHERE video_id = type::thing('videos', $video_id)
+            WHERE video_id = type::thing('video', $video_id)
             AND timestamp > time::now() - 24h
             ORDER BY timestamp ASC
         """
 
         events = await self.db.query(query, {
-            "video_id": video_id.replace("videos:", "")
+            "video_id": normalize_id(video_id, "video:")
         })
 
         if not events or len(events) < 10:
@@ -465,8 +530,8 @@ async def setup_event_schema(db_client):
     schema = """
         DEFINE TABLE video_events SCHEMAFULL;
         DEFINE FIELD type ON TABLE video_events TYPE string;
-        DEFINE FIELD video_id ON TABLE video_events TYPE record<videos>;
-        DEFINE FIELD user_id ON TABLE video_events TYPE record<users>;
+        DEFINE FIELD video_id ON TABLE video_events TYPE record<video>;
+        DEFINE FIELD user_id ON TABLE video_events TYPE record<user>;
         DEFINE FIELD timestamp ON TABLE video_events TYPE datetime;
         DEFINE FIELD metadata ON TABLE video_events TYPE object;
 
@@ -476,7 +541,7 @@ async def setup_event_schema(db_client):
         DEFINE INDEX idx_video_events_type ON TABLE video_events COLUMNS type;
 
         -- Add completion_count field to videos table
-        DEFINE FIELD completion_count ON TABLE videos TYPE int DEFAULT 0;
+        DEFINE FIELD completion_count ON TABLE video TYPE int DEFAULT 0;
     """
 
     await db_client.query(schema)
