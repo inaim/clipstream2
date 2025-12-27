@@ -12,11 +12,42 @@ These events are stored in SurrealDB and used to train the scoring model.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 import logging
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_id(record_id: Union[str, Dict], table_prefix: str = "") -> str:
+    """
+    Normalize SurrealDB record ID to just the ID part.
+
+    SurrealDB can return IDs in different formats:
+    - String: "video:123" or "123"
+    - Dict: {"table_name": "video", "id": "123"}
+
+    Args:
+        record_id: Record ID in any format
+        table_prefix: Expected table prefix (e.g., "videos:", "users:")
+
+    Returns:
+        id_part: Just the ID part without table prefix
+    """
+    if isinstance(record_id, dict):
+        # Dict format: {"table_name": "video", "id": "123"}
+        return str(record_id.get("id", ""))
+    elif isinstance(record_id, str):
+        # String format: "video:123" or "123"
+        if table_prefix and record_id.startswith(table_prefix):
+            return record_id[len(table_prefix):]
+        # Try common prefixes
+        for prefix in ["videos:", "users:", "video:", "user:"]:
+            if record_id.startswith(prefix):
+                return record_id[len(prefix):]
+        return record_id
+    else:
+        return str(record_id)
 
 
 class EventType(Enum):
@@ -304,8 +335,8 @@ class VideoEventRecorder:
 
         result = await self.db.query(query, {
             "type": event_type.value,
-            "video_id": video_id.replace("videos:", ""),
-            "user_id": user_id.replace("users:", ""),
+            "video_id": normalize_id(video_id, "videos:"),
+            "user_id": normalize_id(user_id, "users:"),
             "metadata": metadata
         })
 
@@ -348,7 +379,7 @@ class VideoEventRecorder:
             """
 
         result = await self.db.query(query, {
-            "user_id": user_id.replace("users:", "")
+            "user_id": normalize_id(user_id, "users:")
         })
 
         return result if result else []
@@ -388,7 +419,7 @@ class VideoEventRecorder:
             """
 
         result = await self.db.query(query, {
-            "video_id": video_id.replace("videos:", "")
+            "video_id": normalize_id(video_id, "videos:")
         })
 
         return result if result else []
@@ -417,7 +448,7 @@ class VideoEventRecorder:
         """
 
         events = await self.db.query(query, {
-            "video_id": video_id.replace("videos:", "")
+            "video_id": normalize_id(video_id, "videos:")
         })
 
         if not events or len(events) < 10:
