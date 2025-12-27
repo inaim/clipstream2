@@ -23,6 +23,9 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
 
+# Import stealth scraper library
+from lib.stealth_scraper import StealthScraper, ProxyRotator
+
 logger = logging.getLogger(__name__)
 
 # Realistic user agents for rotation
@@ -95,6 +98,10 @@ class TikTokBrowserScraper:
         self.browser: Optional[Browser] = None
         self.playwright = None
 
+        # Stealth scraper instance (optional, for advanced anti-detection)
+        self.stealth_scraper: Optional[StealthScraper] = None
+        self.use_stealth_mode: bool = False
+
         # Track seen videos to avoid duplicates
         self.seen_video_ids: Set[str] = set()
 
@@ -147,6 +154,11 @@ class TikTokBrowserScraper:
 
     async def close(self):
         """Close the browser instance."""
+        # Close stealth scraper if active
+        if self.stealth_scraper:
+            await self.stealth_scraper.close()
+            self.stealth_scraper = None
+
         if self.browser:
             await self.browser.close()
             self.browser = None
@@ -157,30 +169,104 @@ class TikTokBrowserScraper:
 
         logger.info("Browser closed")
 
+    async def enable_stealth_mode(self, proxies: Optional[List[str]] = None):
+        """
+        Enable advanced stealth mode using the StealthScraper library.
+
+        This provides enhanced anti-detection beyond the basic features.
+
+        Args:
+            proxies: Optional list of proxy URLs for rotation
+        """
+        logger.info("Enabling advanced stealth mode with proxy rotation...")
+
+        # Create proxy rotator if proxies provided
+        proxy_rotator = ProxyRotator(proxies) if proxies else None
+
+        # Initialize stealth scraper
+        self.stealth_scraper = StealthScraper(
+            headless=self.headless,
+            proxy_rotator=proxy_rotator,
+            rotate_user_agents=True,
+            min_delay=self.scroll_delay * 0.5,
+            max_delay=self.scroll_delay * 1.5,
+        )
+
+        await self.stealth_scraper.start()
+        self.use_stealth_mode = True
+
+        logger.info(f"Stealth mode enabled{' with proxy rotation' if proxies else ''}")
+
     async def create_page(self) -> Page:
         """
         Create a new page with anti-detection settings.
 
+        If stealth mode is enabled, uses the advanced StealthScraper library.
+        Otherwise, uses the built-in anti-detection features.
+
         Returns:
             Configured Playwright page
         """
+        # Use stealth scraper if enabled
+        if self.use_stealth_mode and self.stealth_scraper:
+            return await self.stealth_scraper.create_page(custom_proxy=self.proxy)
+
+        # Otherwise use built-in method
         if not self.browser:
             await self.start()
 
+        # Rotate user agent if enabled
+        current_user_agent = self.user_agent
+        if self.rotate_agents:
+            current_user_agent = random.choice(USER_AGENTS)
+            logger.debug(f"Rotating user agent: {current_user_agent[:50]}...")
+
+        # Randomize viewport
+        viewport = random.choice(VIEWPORTS)
+
         context = await self.browser.new_context(
-            user_agent=self.user_agent,
-            viewport={'width': 1920, 'height': 1080},
+            user_agent=current_user_agent,
+            viewport=viewport,
             locale='en-US',
             timezone_id='America/New_York',
+            # Additional fingerprinting evasion
+            permissions=['geolocation'],
+            geolocation={'latitude': 40.7128, 'longitude': -74.0060},  # New York
+            color_scheme='light',
+            device_scale_factor=1,
         )
 
         page = await context.new_page()
 
-        # Inject anti-detection scripts
+        # Inject comprehensive anti-detection scripts
         await page.add_init_script("""
+            // Remove webdriver property
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
+
+            // Mock plugins to appear like a real browser
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+
+            // Mock languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en']
+            });
+
+            // Chrome runtime evasion
+            window.chrome = {
+                runtime: {}
+            };
+
+            // Permissions API
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
         """)
 
         return page
@@ -263,8 +349,8 @@ class TikTokBrowserScraper:
             logger.info(f"Navigating to {url}")
             await page.goto(url, wait_until='networkidle', timeout=30000)
 
-            # Wait for initial content to load
-            await asyncio.sleep(3)
+            # Wait for initial content to load with randomized delay (2-4 seconds)
+            await asyncio.sleep(random.uniform(2.0, 4.0))
 
             # Scroll and collect videos
             consecutive_no_new = 0
@@ -288,7 +374,10 @@ class TikTokBrowserScraper:
 
                 # Scroll down to load more videos
                 await self._scroll_down(page)
-                await asyncio.sleep(self.scroll_delay)
+
+                # Randomize delay between scrolls (±20% of base delay)
+                delay = self.scroll_delay * random.uniform(0.8, 1.2)
+                await asyncio.sleep(delay)
 
             # Trim to exact limit
             videos = videos[:max_videos]
@@ -483,11 +572,17 @@ class TikTokBrowserScraper:
     async def _scroll_down(self, page: Page):
         """
         Scroll down the page to trigger infinite scroll.
+        Uses randomized scroll amounts to appear more human-like.
 
         Args:
             page: Playwright page
         """
-        await page.evaluate('window.scrollBy(0, window.innerHeight)')
+        # Randomize scroll distance (80-120% of viewport height)
+        scroll_factor = random.uniform(0.8, 1.2)
+        await page.evaluate(f'window.scrollBy(0, window.innerHeight * {scroll_factor})')
+
+        # Add small random delay after scroll (100-300ms)
+        await asyncio.sleep(random.uniform(0.1, 0.3))
 
     async def scrape_multiple_hashtags(
         self,
