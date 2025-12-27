@@ -50,6 +50,37 @@ def normalize_id(record_id: Union[str, Dict], table_prefix: str = "") -> str:
         return str(record_id)
 
 
+def format_record_id(record_id: Union[str, Dict], table_name: str) -> str:
+    """
+    Format a record ID for use in SurrealDB queries.
+
+    Converts any ID format to the standard "table:id" format.
+
+    Args:
+        record_id: Record ID in any format
+        table_name: Table name (without colon, e.g., "videos", "users")
+
+    Returns:
+        formatted_id: ID in "table:id" format (e.g., "videos:123")
+    """
+    if isinstance(record_id, dict):
+        # Dict format: {"table_name": "video", "id": "123"}
+        # Use the table name from the dict if available, otherwise use provided
+        table = record_id.get("table_name", table_name)
+        id_part = record_id.get("id", "")
+        return f"{table}:{id_part}"
+    elif isinstance(record_id, str):
+        # String format: might be "video:123" or just "123"
+        if ":" in record_id:
+            # Already formatted
+            return record_id
+        else:
+            # Just the ID part
+            return f"{table_name}:{record_id}"
+    else:
+        return f"{table_name}:{str(record_id)}"
+
+
 class EventType(Enum):
     """Types of video events to track."""
 
@@ -138,8 +169,9 @@ class VideoEventRecorder:
         )
 
         # Increment view count on video
+        formatted_video_id = format_record_id(video_id, "videos")
         await self.db.query(
-            f"UPDATE {video_id} SET view_count += 1, updated_at = time::now()"
+            f"UPDATE {formatted_video_id} SET view_count += 1, updated_at = time::now()"
         )
 
         return event
@@ -187,8 +219,9 @@ class VideoEventRecorder:
         # Update video metrics
         if progress >= 0.95:
             # Count as a completion
+            formatted_video_id = format_record_id(video_id, "videos")
             await self.db.query(
-                f"UPDATE {video_id} SET completion_count += 1, updated_at = time::now()"
+                f"UPDATE {formatted_video_id} SET completion_count += 1, updated_at = time::now()"
             )
 
         return event
@@ -220,17 +253,18 @@ class VideoEventRecorder:
         )
 
         # Update corresponding counters
+        formatted_video_id = format_record_id(video_id, "videos")
         if event_type == EventType.LIKE:
             await self.db.query(
-                f"UPDATE {video_id} SET like_count += 1, updated_at = time::now()"
+                f"UPDATE {formatted_video_id} SET like_count += 1, updated_at = time::now()"
             )
         elif event_type == EventType.COMMENT:
             await self.db.query(
-                f"UPDATE {video_id} SET comment_count += 1, updated_at = time::now()"
+                f"UPDATE {formatted_video_id} SET comment_count += 1, updated_at = time::now()"
             )
         elif event_type == EventType.SHARE:
             await self.db.query(
-                f"UPDATE {video_id} SET share_count += 1, updated_at = time::now()"
+                f"UPDATE {formatted_video_id} SET share_count += 1, updated_at = time::now()"
             )
 
         return event
