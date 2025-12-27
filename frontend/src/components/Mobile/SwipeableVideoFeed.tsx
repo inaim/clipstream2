@@ -7,16 +7,16 @@ type Video = {
   title: string;
   description: string;
   video_url: string;
-  thumbnail_url: string;
-  duration: number;
-  user_id: string;
-  username: string;
-  display_name: string;
+  thumbnail_url?: string;
+  duration?: number;
+  user_id?: string;
+  username?: string;
+  display_name?: string;
   avatar_url?: string;
-  likes_count: number;
-  comments_count: number;
-  shares_count: number;
-  created_at: string;
+  likes_count?: number;
+  comments_count?: number;
+  shares_count?: number;
+  created_at?: string;
 };
 
 interface SwipeableVideoFeedProps {
@@ -74,7 +74,45 @@ export function SwipeableVideoFeed({ feedType }: SwipeableVideoFeedProps) {
       }
 
       const data = await response.json();
-      setVideos(data.items || []);
+
+      // Backend returns a plain array; normalize to the shape the player expects
+      const rawList: any[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : [];
+
+      const normalized = rawList.map((v, idx) => {
+        const id = v.id || v.video_id || `video-${idx}`;
+        const cdn = v.cdn_url || v.video_url || v.playback_url || '';
+        return {
+          video_id: id,
+          title: v.title || 'Untitled',
+          description: v.description || '',
+          video_url: cdn,
+          thumbnail_url: v.thumbnail || v.thumbnail_url || '',
+          duration: v.duration || 0,
+          user_id: v.user_id || v.user || '',
+          username:
+            v.username ||
+            v?.creator?.username ||
+            v?.profiles?.username ||
+            '',
+          display_name:
+            v.display_name ||
+            v?.creator?.display_name ||
+            v?.profiles?.display_name ||
+            '',
+          avatar_url: v?.profiles?.avatar_url || v.avatar_url || '',
+          likes_count: v.likes_count ?? v.like_count ?? 0,
+          comments_count: v.comments_count ?? v.comment_count ?? 0,
+          shares_count: v.shares_count ?? v.share_count ?? 0,
+          created_at: v.created_at || new Date().toISOString(),
+        } as Video;
+      });
+
+      // Only keep entries that have a playable URL
+      setVideos(normalized.filter(v => !!v.video_url));
     } catch (error) {
       console.error('Error loading videos:', error);
       setVideos([]);

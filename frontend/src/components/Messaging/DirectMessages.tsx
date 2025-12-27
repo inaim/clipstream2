@@ -34,7 +34,7 @@ interface Message {
   read: boolean;
 }
 
-export const DirectMessages: React.FC = () => {
+export const DirectMessages: React.FC<{ onUnreadChange?: (n: number) => void }> = ({ onUnreadChange }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -67,6 +67,8 @@ export const DirectMessages: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setConversations(data);
+        const unread = (data || []).reduce((acc: number, c: any) => acc + (c.unread_count || c.unreadCount || 0), 0);
+        onUnreadChange?.(unread);
       }
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
@@ -100,11 +102,12 @@ export const DirectMessages: React.FC = () => {
         },
       });
       // Update conversation unread count
-      setConversations(
-        conversations.map((conv) =>
-          conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
-        )
-      );
+      setConversations((prev) => {
+        const updated = prev.map((conv) => (conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv));
+        const unread = updated.reduce((acc: number, c: any) => acc + (c.unread_count || c.unreadCount || c.unreadCount === 0 ? c.unread_count || c.unreadCount || 0 : 0), 0);
+        onUnreadChange?.(unread);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to mark as read:', error);
     }

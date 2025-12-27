@@ -27,19 +27,45 @@ interface Notification {
   read: boolean;
 }
 
-export const NotificationCenter: React.FC = () => {
+export const NotificationCenter: React.FC<{ onUnreadChange?: (n: number) => void }> = ({ onUnreadChange }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [activeTab, setActiveTab] = useState<'all' | 'likes' | 'comments' | 'follows'>('all');
   const { user } = useAuth();
 
   useEffect(() => {
+    // Skip if not authenticated
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
+
     fetchNotifications();
-    // Set up real-time notifications via WebSocket or SSE
-    const eventSource = new EventSource(`/api/v1/notifications/stream?userId=${user?.id}`);
+
+    // Set up real-time notifications via SSE
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+    const streamUrl = `${API_BASE}/api/v1/notifications/stream?userId=${user.id}`;
+    const eventSource = new EventSource(streamUrl);
+
     eventSource.onmessage = (event) => {
-      const notification = JSON.parse(event.data);
-      setNotifications((prev) => [notification, ...prev]);
+      try {
+        const notification = JSON.parse(event.data);
+        setNotifications((prev) => {
+          const next = [notification, ...prev];
+          const unread = next.filter((n) => !n.read).length;
+          onUnreadChange?.(unread);
+          return next;
+        });
+      } catch (err) {
+        console.error('Invalid notification event data', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      // If connection dies, we'll attempt to refetch counts once
+      console.warn('Notification SSE error', err);
+      // try one refresh of counts
+      fetchNotifications();
     };
 
     return () => {
@@ -48,8 +74,11 @@ export const NotificationCenter: React.FC = () => {
   }, [user?.id]);
 
   const fetchNotifications = async () => {
+    if (!user?.id) return;
+
     try {
-      const res = await fetch('/api/v1/notifications', {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/v1/notifications`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('clipstream_token')}`,
         },
@@ -57,6 +86,8 @@ export const NotificationCenter: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
+        const unread = Array.isArray(data) ? data.filter((n: any) => !n.read).length : 0;
+        onUnreadChange?.(unread);
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -71,11 +102,12 @@ export const NotificationCenter: React.FC = () => {
           Authorization: `Bearer ${localStorage.getItem('clipstream_token')}`,
         },
       });
-      setNotifications(
-        notifications.map((notif) =>
-          notif.id === notificationId ? { ...notif, read: true } : notif
-        )
-      );
+      setNotifications((prev) => {
+        const updated = prev.map((notif) => (notif.id === notificationId ? { ...notif, read: true } : notif));
+        const unread = updated.filter((n) => !n.read).length;
+        onUnreadChange?.(unread);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
@@ -89,7 +121,12 @@ export const NotificationCenter: React.FC = () => {
           Authorization: `Bearer ${localStorage.getItem('clipstream_token')}`,
         },
       });
-      setNotifications(notifications.map((notif) => ({ ...notif, read: true })));
+      setNotifications((prev) => {
+        const updated = prev.map((notif) => ({ ...notif, read: true }));
+        const unread = updated.filter((n) => !n.read).length;
+        onUnreadChange?.(unread);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to mark all as read:', error);
     }
@@ -103,7 +140,12 @@ export const NotificationCenter: React.FC = () => {
           Authorization: `Bearer ${localStorage.getItem('clipstream_token')}`,
         },
       });
-      setNotifications(notifications.filter((notif) => notif.id !== notificationId));
+      setNotifications((prev) => {
+        const updated = prev.filter((notif) => notif.id !== notificationId);
+        const unread = updated.filter((n) => !n.read).length;
+        onUnreadChange?.(unread);
+        return updated;
+      });
     } catch (error) {
       console.error('Failed to delete notification:', error);
     }

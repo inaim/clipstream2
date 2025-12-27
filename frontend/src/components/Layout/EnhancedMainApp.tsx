@@ -51,10 +51,90 @@ export function EnhancedMainApp() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [userHasSelectedInterests, setUserHasSelectedInterests] = useState(false);
 
+  // Unread counts for badges
+  const [messagesUnread, setMessagesUnread] = useState<number>(0);
+  const [notificationsUnread, setNotificationsUnread] = useState<number>(0);
+
   useEffect(() => {
     // Check if user has selected interests
     checkUserInterests();
+    // fetch initial unread counts
+    fetchUnreadCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Refresh unread counts when returning to feed or when refreshKey changes
+  useEffect(() => {
+    fetchUnreadCounts();
+  }, [refreshKey]);
+
+  // Subscribe to server-sent events for live updates (notifications/messages)
+  useEffect(() => {
+    if (!user?.id) return;
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+    const notifUrl = `${API_BASE}/api/v1/notifications/stream?userId=${user.id}`;
+    const msgUrl = `${API_BASE}/api/v1/messages/stream?userId=${user.id}`;
+
+    const notifEs = new EventSource(notifUrl);
+    notifEs.onmessage = () => {
+      // a notification arrived; refresh counts
+      fetchUnreadCounts();
+    };
+    notifEs.onerror = (e) => {
+      console.warn('Notification SSE error (main app)', e);
+    };
+
+    const msgEs = new EventSource(msgUrl);
+    msgEs.onmessage = () => fetchUnreadCounts();
+    msgEs.onerror = (e) => console.warn('Messages SSE error (main app)', e);
+
+    return () => {
+      notifEs.close();
+      msgEs.close();
+    };
+  }, [user?.id]);
+
+  const fetchUnreadCounts = async () => {
+    if (!user?.id) {
+      setMessagesUnread(0);
+      setNotificationsUnread(0);
+      return;
+    }
+
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+      // Notifications unread
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/notifications`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('clipstream_token')}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const unread = Array.isArray(data) ? data.filter((n: any) => !n.read).length : 0;
+          setNotificationsUnread(unread);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notification count', err);
+      }
+
+      // Messages unread (sum of conversation unread counts)
+      try {
+        const res2 = await fetch(`${API_BASE}/api/v1/messages/conversations`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('clipstream_token')}` },
+        });
+        if (res2.ok) {
+          const convs = await res2.json();
+          const unreadMsgs = (convs || []).reduce((acc: number, c: any) => acc + (c.unread_count || c.unreadCount || 0), 0);
+          setMessagesUnread(unreadMsgs);
+        }
+      } catch (err) {
+        console.error('Failed to fetch messages count', err);
+      }
+    } catch (error) {
+      console.error('Failed to fetch unread counts:', error);
+    }
+  };
 
   const checkUserInterests = async () => {
     try {
@@ -145,10 +225,10 @@ export function EnhancedMainApp() {
         return <SearchAndDiscover />;
 
       case 'messages':
-        return <DirectMessages />;
+        return <DirectMessages onUnreadChange={setMessagesUnread} />;
 
       case 'notifications':
-        return <NotificationCenter />;
+        return <NotificationCenter onUnreadChange={setNotificationsUnread} />;
 
       case 'dashboard':
         return <UserDashboard />;
@@ -218,7 +298,11 @@ export function EnhancedMainApp() {
             </button>
 
             <button
-              onClick={() => setCurrentView('messages')}
+              onClick={() => {
+                setCurrentView('messages');
+                // optimistically clear unread badge when user opens messages
+                setMessagesUnread(0);
+              }}
               className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-lg transition relative ${
                 currentView === 'messages'
                   ? 'text-blue-600'
@@ -227,12 +311,20 @@ export function EnhancedMainApp() {
             >
               <MessageCircle className="w-6 h-6" />
               <span className="text-xs font-medium">Messages</span>
-              {/* Unread badge */}
-              <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              {/* Unread badge (show only when there are unread messages) */}
+              {messagesUnread > 0 && (
+                <span className="absolute top-1 right-2 min-w-[1rem] h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-semibold px-1">
+                  {messagesUnread > 9 ? '9+' : messagesUnread}
+                </span>
+              )}
             </button>
 
             <button
-              onClick={() => setCurrentView('notifications')}
+              onClick={() => {
+                setCurrentView('notifications');
+                // optimistically clear unread badge when user opens notifications
+                setNotificationsUnread(0);
+              }}
               className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-lg transition relative ${
                 currentView === 'notifications'
                   ? 'text-blue-600'
@@ -241,8 +333,12 @@ export function EnhancedMainApp() {
             >
               <Bell className="w-6 h-6" />
               <span className="text-xs font-medium">Inbox</span>
-              {/* Notification badge */}
-              <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              {/* Notification badge (show only when there are unread notifications) */}
+              {notificationsUnread > 0 && (
+                <span className="absolute top-1 right-2 min-w-[1rem] h-4 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-semibold px-1">
+                  {notificationsUnread > 9 ? '9+' : notificationsUnread}
+                </span>
+              )}
             </button>
 
             <button

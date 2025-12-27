@@ -29,6 +29,7 @@ class IngestionConfig(BaseModel):
     fetch_interval: int = Field(default=300, ge=60, le=3600, description="Seconds between fetches")
     videos_per_fetch: int = Field(default=10, ge=1, le=50, description="Videos per fetch")
     use_browser: bool = Field(default=True, description="Use browser scraping for feed discovery")
+    proxy: str = Field(default=None, description="Proxy server URL (e.g., 'http://proxy:port')")
 
 
 class IngestionStatus(BaseModel):
@@ -37,6 +38,7 @@ class IngestionStatus(BaseModel):
     fetch_interval: int
     videos_per_fetch: int
     use_browser: bool
+    proxy: str = None
     total_fetched: int
     total_ingested: int
     total_failed: int
@@ -73,6 +75,8 @@ async def start_ingestion_service(config: IngestionConfig = None):
             service.fetch_interval = config.fetch_interval
             service.videos_per_fetch = config.videos_per_fetch
             service.use_browser = config.use_browser
+            if config.proxy:
+                service.proxy = config.proxy
 
         await service.start()
 

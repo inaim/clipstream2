@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { EditProfileModal } from './EditProfileModal';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { Database } from '../../lib/database.types';
+import { useNavigate } from 'react-router-dom';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type VideoType = Database['public']['Tables']['videos']['Row'];
@@ -22,7 +23,7 @@ interface ProfilePageProps {
 
 export function ProfilePage({ userId }: ProfilePageProps) {
   const { t } = useLanguage();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [videos, setVideos] = useState<VideoType[]>([]);
   const [stats, setStats] = useState<ProfileStats>({
@@ -34,9 +35,10 @@ export function ProfilePage({ userId }: ProfilePageProps) {
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
+  const navigate = useNavigate();
 
-  const targetUserId = userId || currentUser?.id;
-  const isOwnProfile = currentUser?.id === targetUserId;
+  const targetUserId = userId || currentUser?.id || (currentUser as any)?.user_id;
+  const isOwnProfile = (currentUser?.id || (currentUser as any)?.user_id) === targetUserId;
 
   useEffect(() => {
     if (targetUserId) {
@@ -46,6 +48,8 @@ export function ProfilePage({ userId }: ProfilePageProps) {
       if (!isOwnProfile) {
         checkFollowStatus();
       }
+    } else {
+      setLoading(false);
     }
   }, [targetUserId]);
 
@@ -56,6 +60,7 @@ export function ProfilePage({ userId }: ProfilePageProps) {
       setProfile(data);
     } catch (err) {
       setProfile(null);
+      setLoading(false);
     }
   };
 
@@ -79,20 +84,28 @@ export function ProfilePage({ userId }: ProfilePageProps) {
       const videosCount = userVideos.length;
       const likesCount = userVideos.reduce((sum: number, v: any) => sum + (v.likes_count || 0), 0);
 
-      // Followers and following counts via API (if available)
-      // If not available, set to 0
+      // Followers and following counts (best-effort; API may not exist in this build)
       let followersCount = 0;
       let followingCount = 0;
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
       try {
-        const followersRes = await fetch(`/api/follows?following_id=${targetUserId}`);
-        const followersData = await followersRes.json();
-        followersCount = Array.isArray(followersData) ? followersData.length : 0;
-      } catch {}
+        const followersRes = await fetch(`${API_BASE}/api/follows?following_id=${targetUserId}`);
+        if (followersRes.ok) {
+          const followersData = await followersRes.json();
+          followersCount = Array.isArray(followersData) ? followersData.length : 0;
+        }
+      } catch {
+        // ignore missing endpoint
+      }
       try {
-        const followingRes = await fetch(`/api/follows?follower_id=${targetUserId}`);
-        const followingData = await followingRes.json();
-        followingCount = Array.isArray(followingData) ? followingData.length : 0;
-      } catch {}
+        const followingRes = await fetch(`${API_BASE}/api/follows?follower_id=${targetUserId}`);
+        if (followingRes.ok) {
+          const followingData = await followingRes.json();
+          followingCount = Array.isArray(followingData) ? followingData.length : 0;
+        }
+      } catch {
+        // ignore missing endpoint
+      }
 
       setStats({ videosCount, likesCount, followersCount, followingCount });
     } catch {
@@ -103,7 +116,9 @@ export function ProfilePage({ userId }: ProfilePageProps) {
   const checkFollowStatus = async () => {
     if (!currentUser || !targetUserId) return;
     try {
-      const res = await fetch(`/api/follows?follower_id=${currentUser.id}&following_id=${targetUserId}`);
+      const followerId = String(currentUser.id || (currentUser as any)?.user_id || '');
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_BASE}/api/follows?follower_id=${followerId}&following_id=${targetUserId}`);
       const data = await res.json();
       setIsFollowing(Array.isArray(data) && data.length > 0);
     } catch {
@@ -128,10 +143,34 @@ export function ProfilePage({ userId }: ProfilePageProps) {
     } catch {}
   };
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">Loading profile...</div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="text-lg">Please sign in to view your profile.</div>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300"
+            >
+              Go to landing
+            </button>
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 // Attach compatibility supabase to window for older modules that reference it
@@ -10,8 +10,8 @@ import { surreal } from './lib/surrealdb';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <LanguageProvider>
+    <BrowserRouter>
       <App />
-    </LanguageProvider>
+    </BrowserRouter>
   </StrictMode>
 );

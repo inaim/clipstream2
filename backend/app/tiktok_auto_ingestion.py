@@ -70,7 +70,8 @@ class TikTokAutoIngestion:
         fetch_interval: int = FETCH_INTERVAL,
         videos_per_fetch: int = VIDEOS_PER_FETCH,
         download_dir: str = DOWNLOAD_DIR,
-        use_browser: bool = True
+        use_browser: bool = True,
+        proxy: Optional[str] = None
     ):
         """
         Initialize auto-ingestion service.
@@ -80,12 +81,14 @@ class TikTokAutoIngestion:
             videos_per_fetch: Videos to fetch per interval (default: 10)
             download_dir: Directory to store downloaded videos
             use_browser: Use browser scraping for feed discovery (default: True)
+            proxy: Proxy server URL for browser scraping (e.g., "http://proxy:port")
         """
         self.fetch_interval = fetch_interval
         self.videos_per_fetch = videos_per_fetch
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.use_browser = use_browser
+        self.proxy = proxy
 
         self.scraper = TikTokScraper(download_dir=str(self.download_dir))
         self.browser_scraper: Optional[TikTokBrowserScraper] = None
@@ -106,9 +109,16 @@ class TikTokAutoIngestion:
 
         # Initialize browser scraper if enabled
         if self.use_browser:
-            self.browser_scraper = TikTokBrowserScraper(max_videos=self.videos_per_fetch)
+            self.browser_scraper = TikTokBrowserScraper(
+                max_videos=self.videos_per_fetch,
+                proxy=self.proxy,
+                rotate_agents=True  # Enable user agent rotation
+            )
             await self.browser_scraper.start()
-            logger.info("Browser scraper initialized")
+            if self.proxy:
+                logger.info(f"Browser scraper initialized with proxy: {self.proxy}")
+            else:
+                logger.info("Browser scraper initialized (no proxy)")
 
         self.is_running = True
         self.task = asyncio.create_task(self._run())
@@ -366,6 +376,7 @@ class TikTokAutoIngestion:
             "fetch_interval": self.fetch_interval,
             "videos_per_fetch": self.videos_per_fetch,
             "use_browser": self.use_browser,
+            "proxy": self.proxy,
             "total_fetched": self.total_fetched,
             "total_ingested": self.total_ingested,
             "total_failed": self.total_failed,
