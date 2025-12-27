@@ -23,6 +23,9 @@ from pathlib import Path
 from datetime import datetime
 from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
 
+# Import stealth scraper library
+from lib.stealth_scraper import StealthScraper, ProxyRotator
+
 logger = logging.getLogger(__name__)
 
 # Realistic user agents for rotation
@@ -95,6 +98,10 @@ class TikTokBrowserScraper:
         self.browser: Optional[Browser] = None
         self.playwright = None
 
+        # Stealth scraper instance (optional, for advanced anti-detection)
+        self.stealth_scraper: Optional[StealthScraper] = None
+        self.use_stealth_mode: bool = False
+
         # Track seen videos to avoid duplicates
         self.seen_video_ids: Set[str] = set()
 
@@ -147,6 +154,11 @@ class TikTokBrowserScraper:
 
     async def close(self):
         """Close the browser instance."""
+        # Close stealth scraper if active
+        if self.stealth_scraper:
+            await self.stealth_scraper.close()
+            self.stealth_scraper = None
+
         if self.browser:
             await self.browser.close()
             self.browser = None
@@ -157,13 +169,49 @@ class TikTokBrowserScraper:
 
         logger.info("Browser closed")
 
+    async def enable_stealth_mode(self, proxies: Optional[List[str]] = None):
+        """
+        Enable advanced stealth mode using the StealthScraper library.
+
+        This provides enhanced anti-detection beyond the basic features.
+
+        Args:
+            proxies: Optional list of proxy URLs for rotation
+        """
+        logger.info("Enabling advanced stealth mode with proxy rotation...")
+
+        # Create proxy rotator if proxies provided
+        proxy_rotator = ProxyRotator(proxies) if proxies else None
+
+        # Initialize stealth scraper
+        self.stealth_scraper = StealthScraper(
+            headless=self.headless,
+            proxy_rotator=proxy_rotator,
+            rotate_user_agents=True,
+            min_delay=self.scroll_delay * 0.5,
+            max_delay=self.scroll_delay * 1.5,
+        )
+
+        await self.stealth_scraper.start()
+        self.use_stealth_mode = True
+
+        logger.info(f"Stealth mode enabled{' with proxy rotation' if proxies else ''}")
+
     async def create_page(self) -> Page:
         """
         Create a new page with anti-detection settings.
 
+        If stealth mode is enabled, uses the advanced StealthScraper library.
+        Otherwise, uses the built-in anti-detection features.
+
         Returns:
             Configured Playwright page
         """
+        # Use stealth scraper if enabled
+        if self.use_stealth_mode and self.stealth_scraper:
+            return await self.stealth_scraper.create_page(custom_proxy=self.proxy)
+
+        # Otherwise use built-in method
         if not self.browser:
             await self.start()
 

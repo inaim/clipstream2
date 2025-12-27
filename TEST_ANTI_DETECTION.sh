@@ -32,10 +32,17 @@ echo ""
 # Test 2: Start with enhanced anti-detection (no proxy)
 echo "Step 2: Starting ingestion with enhanced anti-detection..."
 echo -e "${YELLOW}Features enabled:${NC}"
-echo "  - User agent rotation (8 different browsers)"
-echo "  - Randomized viewports"
+echo "  - User agent rotation (20+ different browsers)"
+echo "  - Randomized viewports (7 different sizes)"
 echo "  - Randomized scroll behavior"
-echo "  - Anti-detection scripts"
+echo "  - Advanced anti-detection scripts"
+echo "  - Stealth mode library"
+echo ""
+echo "Choose mode:"
+echo "  1) Basic anti-detection (user agents + randomization)"
+echo "  2) Stealth mode (advanced library with all features)"
+echo ""
+read -p "Select mode (1 or 2): " MODE
 echo ""
 
 START_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/tiktok-ingestion/start \
