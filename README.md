@@ -858,6 +858,8 @@ cd clipstream2
 bash START_TIKTOK_PLATFORM.sh
 ```
 
+If you're working on the payment rails or tokenomics layer, see the companion project [TrustedCrypto](https://github.com/al-khwarizme/TrustedCrypto) — an asset-backed, community-owned currency model that aligns with the creator cooperative economics here.
+
 ### Development setup
 
 ```bash
