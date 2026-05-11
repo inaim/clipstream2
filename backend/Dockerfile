@@ -30,6 +30,14 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
+# Install Playwright browsers (Chromium) and dependencies for TikTok ingestion
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# Refresh apt cache for install-deps to avoid stale indexes in slim images
+RUN apt-get update && \
+    playwright install-deps chromium && \
+    playwright install chromium && \
+    chown -R 1000:1000 /ms-playwright
+
 # Create necessary directories with proper permissions
 RUN mkdir -p uploads logs && \
     chmod 755 uploads logs

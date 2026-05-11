@@ -485,6 +485,12 @@ class SurrealDBClient:
                             r['id'] = str(r['id'])
                         except Exception:
                             pass
+                    # Ensure a playable URL is present for the frontend
+                    if isinstance(r, dict):
+                        cdn = r.get('cdn_url') or r.get('playback_url') or r.get('url')
+                        if cdn:
+                            r.setdefault('cdn_url', cdn)
+                            r.setdefault('video_url', cdn)
                 logger.info(f"get_for_you_feed: returning {len(res)} records (dict->result)")
                 return res
             # Handle [[{...}, {...}]]
@@ -496,6 +502,11 @@ class SurrealDBClient:
                             r['id'] = str(r['id'])
                         except Exception:
                             pass
+                    if isinstance(r, dict):
+                        cdn = r.get('cdn_url') or r.get('playback_url') or r.get('url')
+                        if cdn:
+                            r.setdefault('cdn_url', cdn)
+                            r.setdefault('video_url', cdn)
                 logger.info(f"get_for_you_feed: returning {len(first)} records (list)")
                 return first
             # If first is a direct record dict, return it wrapped
@@ -505,6 +516,10 @@ class SurrealDBClient:
                         first['id'] = str(first['id'])
                     except Exception:
                         pass
+                cdn = first.get('cdn_url') or first.get('playback_url') or first.get('url')
+                if cdn:
+                    first.setdefault('cdn_url', cdn)
+                    first.setdefault('video_url', cdn)
                 logger.info("get_for_you_feed: returning 1 record (single dict)")
                 return [first]
             return []

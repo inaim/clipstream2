@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 import subprocess
 import tempfile
+import uuid
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +75,10 @@ class TikTokScraper:
         """
         try:
             logger.info(f"Downloading TikTok video: {tiktok_url}")
+
+            # If this is a direct CDN link (e.g., from EnsembleData), download directly
+            if "tiktokcdn" in tiktok_url or tiktok_url.lower().endswith(".mp4"):
+                return await self._direct_download(tiktok_url)
 
             # Use yt-dlp to download and extract metadata
             output_path = self.download_dir / TIKTOK_OUTPUT_TEMPLATE
@@ -188,6 +195,43 @@ class TikTokScraper:
             "file_size": video_path.stat().st_size,
             "content_hash": self._compute_hash(video_path),
         }
+
+    async def _direct_download(self, url: str) -> Optional[Dict[str, Any]]:
+        """
+        Download a video directly from a CDN URL (already a .mp4 link).
+        """
+        try:
+            filename = f"{uuid.uuid4().hex}.mp4"
+            dest = self.download_dir / filename
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream("GET", url) as resp:
+                    resp.raise_for_status()
+                    with open(dest, "wb") as f:
+                        async for chunk in resp.aiter_bytes():
+                            f.write(chunk)
+
+            return {
+                "url": url,
+                "video_path": str(dest),
+                "title": dest.stem,
+                "creator": "unknown",
+                "creator_name": "Unknown Creator",
+                "duration": 0.0,
+                "view_count": 0,
+                "like_count": 0,
+                "comment_count": 0,
+                "share_count": 0,
+                "description": "",
+                "hashtags": [],
+                "thumbnail": "",
+                "upload_date": "",
+                "file_size": dest.stat().st_size,
+                "content_hash": self._compute_hash(dest),
+            }
+        except Exception as e:
+            logger.error(f"Direct download failed: {e}")
+            return None
 
     def _compute_hash(self, file_path: Path) -> str:
         """

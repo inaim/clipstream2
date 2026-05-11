@@ -347,7 +347,7 @@ class TikTokBrowserScraper:
 
         try:
             logger.info(f"Navigating to {url}")
-            await page.goto(url, wait_until='networkidle', timeout=30000)
+            await page.goto(url, wait_until='networkidle', timeout=60000)
 
             # Wait for initial content to load with randomized delay (2-4 seconds)
             await asyncio.sleep(random.uniform(2.0, 4.0))

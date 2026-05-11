@@ -22,6 +22,8 @@ import shutil
 import hashlib
 import os
 
+import httpx
+
 from app.tiktok_scraper import TikTokScraper
 from app.tiktok_browser_scraper import TikTokBrowserScraper, scrape_tiktok_hashtags
 from db.surrealdb_client import db_client
@@ -71,7 +73,9 @@ class TikTokAutoIngestion:
         videos_per_fetch: int = VIDEOS_PER_FETCH,
         download_dir: str = DOWNLOAD_DIR,
         use_browser: bool = True,
-        proxy: Optional[str] = None
+        proxy: Optional[str] = None,
+        use_stealth_mode: bool = True,
+        target_user: Optional[str] = None
     ):
         """
         Initialize auto-ingestion service.
@@ -89,6 +93,8 @@ class TikTokAutoIngestion:
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.use_browser = use_browser
         self.proxy = proxy
+        self.use_stealth_mode = use_stealth_mode
+        self.target_user = target_user
 
         self.scraper = TikTokScraper(download_dir=str(self.download_dir))
         self.browser_scraper: Optional[TikTokBrowserScraper] = None
@@ -115,6 +121,14 @@ class TikTokAutoIngestion:
                 rotate_agents=True  # Enable user agent rotation
             )
             await self.browser_scraper.start()
+            if self.use_stealth_mode:
+                try:
+                    await self.browser_scraper.enable_stealth_mode(
+                        proxies=[self.proxy] if self.proxy else None
+                    )
+                    logger.info("Stealth mode enabled for browser scraper")
+                except Exception as e:
+                    logger.warning(f"Failed to enable stealth mode: {e}")
             if self.proxy:
                 logger.info(f"Browser scraper initialized with proxy: {self.proxy}")
             else:
@@ -241,16 +255,27 @@ class TikTokAutoIngestion:
         Returns:
             List of dicts with 'url' and 'category'
         """
+        # Option 0: EnsembleData API (if API key provided)
+        ensemble_urls = await self._get_ensembledata_urls()
+        if ensemble_urls:
+            return ensemble_urls
+
         # Option 1: Browser scraping (if enabled)
         if self.use_browser and self.browser_scraper:
             try:
                 logger.info("Using browser scraper to fetch trending videos")
 
-                # Scrape from multiple hashtags for diversity
-                videos = await self.browser_scraper.scrape_multiple_hashtags(
-                    TRENDING_HASHTAGS,
-                    videos_per_hashtag=max(2, self.videos_per_fetch // len(TRENDING_HASHTAGS))
-                )
+                # Scrape a specific user if configured, otherwise multiple hashtags
+                if self.target_user:
+                    videos = await self.browser_scraper.scrape_user_videos(
+                        self.target_user,
+                        limit=self.videos_per_fetch
+                    )
+                else:
+                    videos = await self.browser_scraper.scrape_multiple_hashtags(
+                        TRENDING_HASHTAGS,
+                        videos_per_hashtag=max(2, self.videos_per_fetch // len(TRENDING_HASHTAGS))
+                    )
 
                 if videos:
                     # Convert to expected format
@@ -289,6 +314,93 @@ class TikTokAutoIngestion:
                 return urls[:self.videos_per_fetch]
 
         logger.warning("No TikTok URL source available. Configure browser scraping or add tiktok_urls.txt")
+        return []
+
+    async def _get_ensembledata_urls(self) -> List[Dict[str, Any]]:
+        """Fetch TikTok videos via EnsembleData API if API key is configured."""
+        api_key = getattr(settings, "ENSEMBLEDATA_API_KEY", "") or os.getenv("ENSEMBLEDATA_API_KEY", "")
+        if not api_key:
+            return []
+
+        base = "https://ensembledata.com/apis"
+
+        async def _extract_urls(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            urls: List[Dict[str, Any]] = []
+            for item in items[: self.videos_per_fetch]:
+                video = item.get("video", item)
+                # Try several known fields for a playable URL
+                candidates = []
+                for key in ("download_addr", "play_addr", "play_url", "download_url"):
+                    val = video.get(key)
+                    if isinstance(val, dict):
+                        candidates.extend(val.get("url_list", []))
+                    elif isinstance(val, list):
+                        candidates.extend(val)
+                    elif isinstance(val, str):
+                        candidates.append(val)
+                # Some endpoints return top-level play_url/download_url
+                for key in ("play_url", "download_url", "url"):
+                    val = item.get(key)
+                    if isinstance(val, list):
+                        candidates.extend(val)
+                    elif isinstance(val, str):
+                        candidates.append(val)
+
+                cdn = next((c for c in candidates if c), None)
+                if not cdn:
+                    continue
+                urls.append({
+                    "url": cdn,
+                    "category": item.get("category") or video.get("category") or "general",
+                    "metadata": item
+                })
+            return urls
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Try user posts first if specified
+            if self.target_user:
+                params = {
+                    "username": self.target_user,
+                    "depth": 1,
+                    "start_cursor": 0,
+                    "new_version": True,
+                    "download_video": True,
+                    "token": api_key,
+                }
+                try:
+                    resp = await client.get(f"{base}/tt/user/posts", params=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    inner = data.get("data") if isinstance(data, dict) else None
+                    items = inner.get("data") if isinstance(inner, dict) else inner
+                    if isinstance(items, list):
+                        urls = await _extract_urls(items)
+                        if urls:
+                            logger.info(f"EnsembleData provided {len(urls)} user videos for @{self.target_user}")
+                            return urls
+                except Exception as e:
+                    logger.warning(f"EnsembleData user fetch failed: {e}")
+
+            # Fallback: hashtag posts (fyp/trending bucket)
+            params = {
+                "name": "fyp",
+                "cursor": 0,
+                "token": api_key,
+            }
+            try:
+                resp = await client.get(f"{base}/tt/hashtag/posts", params=params)
+                resp.raise_for_status()
+                data = resp.json()
+                inner = data.get("data") if isinstance(data, dict) else None
+                items = inner.get("data") if isinstance(inner, dict) else inner
+                if isinstance(items, list):
+                    urls = await _extract_urls(items)
+                    if urls:
+                        logger.info(f"EnsembleData provided {len(urls)} hashtag videos")
+                        return urls
+            except Exception as e:
+                logger.warning(f"EnsembleData hashtag fetch failed: {e}")
+
         return []
 
     async def _ingest_video(self, video_info: Dict[str, Any], category: str) -> bool:
@@ -377,6 +489,8 @@ class TikTokAutoIngestion:
             "videos_per_fetch": self.videos_per_fetch,
             "use_browser": self.use_browser,
             "proxy": self.proxy,
+            "use_stealth_mode": self.use_stealth_mode,
+            "target_user": self.target_user,
             "total_fetched": self.total_fetched,
             "total_ingested": self.total_ingested,
             "total_failed": self.total_failed,

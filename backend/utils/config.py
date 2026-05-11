@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field("redis://:6379/0", env="REDIS_URL")
     CELERY_BROKER_URL: str = Field("redis://localhost:6379/0", env="CELERY_BROKER_URL")
     CELERY_RESULT_BACKEND: str = Field("redis://localhost:6379/1", env="CELERY_RESULT_BACKEND")
+    ENSEMBLEDATA_API_KEY: str = Field("", env="ENSEMBLEDATA_API_KEY")
 
     # IPFS (optional for Cloud Run)
     IPFS_URL: str = Field("/ip4/127.0.0.1/tcp/5001/http", env="IPFS_URL")

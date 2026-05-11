@@ -29,7 +29,9 @@ class IngestionConfig(BaseModel):
     fetch_interval: int = Field(default=300, ge=60, le=3600, description="Seconds between fetches")
     videos_per_fetch: int = Field(default=10, ge=1, le=50, description="Videos per fetch")
     use_browser: bool = Field(default=True, description="Use browser scraping for feed discovery")
+    use_stealth_mode: bool = Field(default=True, description="Enable advanced stealth scraper")
     proxy: str = Field(default=None, description="Proxy server URL (e.g., 'http://proxy:port')")
+    target_user: str | None = Field(default=None, description="TikTok username to scrape (without @)")
 
 
 class IngestionStatus(BaseModel):
@@ -38,7 +40,9 @@ class IngestionStatus(BaseModel):
     fetch_interval: int
     videos_per_fetch: int
     use_browser: bool
+    use_stealth_mode: bool = True
     proxy: str = None
+    target_user: str | None = None
     total_fetched: int
     total_ingested: int
     total_failed: int
@@ -77,6 +81,8 @@ async def start_ingestion_service(config: IngestionConfig = None):
             service.use_browser = config.use_browser
             if config.proxy:
                 service.proxy = config.proxy
+            service.use_stealth_mode = config.use_stealth_mode
+            service.target_user = config.target_user
 
         await service.start()
 
