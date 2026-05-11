@@ -21,10 +21,12 @@ ClipStream is a next-generation video sharing platform that combines TikTok-like
 - **Adaptive Streaming**: 4 quality levels (360p to 1080p) with automatic bitrate selection
 
 ### 🤖 **AI-Powered Intelligence**
-- **CLIP Embeddings**: Semantic video understanding for perfect recommendations
+- **Near Real-Time Personalisation**: Swipe events update your preference model in ~100ms via SSE — the feed adapts within a single session
+- **TikTok-Style Ranking Model**: 3-component scoring (60% user interest · 30% video quality · 10% exploration bonus)
+- **CLIP Embeddings**: 512-dimensional semantic video understanding for precise content matching
 - **Whisper Captions**: Automatic subtitle generation in multiple languages
 - **Content Moderation**: AI-powered NSFW, violence, and toxicity detection
-- **Smart Feed Algorithm**: Personalised "For You" page with engagement-based ranking
+- **Exploration via UCB**: Upper Confidence Bound bonus surfaces undiscovered categories and prevents filter bubbles
 
 ### 🌐 **Web3 & Decentralisation**
 - **IPFS Integration**: Permanent, censorship-resistant content storage
@@ -426,13 +428,30 @@ For complete API documentation, visit: http://localhost:8080/docs
 - **Metadata Extraction**: Automatic extraction of duration, resolution, codec info
 - **Progress Tracking**: Real-time upload and processing status updates
 
-### **2. AI-Powered Recommendations**
+### **2. Near Real-Time TikTok-Style Recommendation Model**
+
+Every swipe instantly updates the user preference model (~100ms end-to-end via SSE):
+
+```
+User Swipes → Event Logged → ML Profile Updated → SSE Push → Feed Re-ranked
+```
+
+**Scoring formula:**
+```python
+final_score = (
+    0.6 * user_interest_score   # category affinity + CLIP cosine similarity + watch history
+  + 0.3 * video_quality_score   # engagement rate (Laplace-smoothed) + age decay + virality
+  + 0.1 * exploration_bonus     # UCB discovery bonus — breaks filter bubbles
+)
+```
+
+**Diversity re-ranking** penalises consecutive videos from the same category.
 
 - **CLIP Embeddings**: 512-dimensional semantic video understanding
-- **Collaborative Filtering**: User behavior-based recommendations
-- **Engagement Signals**: Likes, shares, watch time, completion rate
-- **Virality Score**: Real-time calculation based on engagement velocity
-- **Personalised Feed**: Unique "For You" page for each user
+- **Collaborative Filtering**: User behaviour-based recommendations
+- **Engagement Signals**: Likes, shares, watch time, rewatch, completion rate
+- **Virality Score**: Real-time calculation based on share velocity
+- **Personalised Feed**: "For You" page adapts within a single session — no batch retraining needed
 
 ### **3. Content Moderation**
 
