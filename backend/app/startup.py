@@ -110,7 +110,10 @@ async def build_schema(db: AsyncSurreal):
     -- ANALYTICS & MONETIZATION
     -- ============================================
 
-    -- Earnings: token rewards for creators
+    -- Earnings: $WATCH contribution tracking records
+    -- Each record represents contribution points earned by a creator.
+    -- trustedcrypto_settled=false means TrustedCrypto settlement is pending.
+    -- $WATCH determines the creator's share; TrustedCrypto is the settlement currency.
     DEFINE TABLE earnings SCHEMALESS;
     DEFINE INDEX earnings_user_idx ON TABLE earnings COLUMNS user_id;
     DEFINE INDEX earnings_video_idx ON TABLE earnings COLUMNS video_id;

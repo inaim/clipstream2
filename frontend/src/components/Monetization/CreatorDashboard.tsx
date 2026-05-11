@@ -64,6 +64,7 @@ export function CreatorDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'governance' | 'platform'>('overview');
   const [metrics, setMetrics] = useState<CreatorMetrics | null>(null);
   const [balance, setBalance] = useState(0);
+  const [watchContribution, setWatchContribution] = useState(0); // $WATCH points pending TrustedCrypto settlement
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [tier, setTier] = useState<CreatorTier | null>(null);
   const [tierInfo, setTierInfo] = useState<TierInfo | null>(null);
@@ -110,7 +111,10 @@ export function CreatorDashboard() {
     ]);
 
     if (metricsRes.data) setMetrics(metricsRes.data);
-    if (currencyRes.data) setBalance(currencyRes.data.balance);
+    if (currencyRes.data) {
+      setBalance(currencyRes.data.balance);
+      setWatchContribution(currencyRes.data.watch_contribution_pending ?? 0);
+    }
     if (ledgerRes.data) setLedger(ledgerRes.data);
     if (tierRes.data) {
       setTier(tierRes.data);
@@ -228,21 +232,22 @@ export function CreatorDashboard() {
 
         {activeTab === 'overview' && (
           <>
-            <div className="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-blue-100 text-sm mb-1">Your Balance</p>
-                  <p className="text-4xl font-bold text-white">{balance.toLocaleString()}</p>
-                  <p className="text-blue-100 text-sm">coins</p>
-                </div>
-                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                  <DollarSign className="w-8 h-8 text-white" />
-                </div>
+            {/* Two-layer earnings: $WATCH contribution + TrustedCrypto settlement */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl p-5">
+                <p className="text-blue-100 text-xs mb-1">Coin Balance</p>
+                <p className="text-3xl font-bold text-white">{balance.toLocaleString()}</p>
+                <p className="text-blue-100 text-xs mt-1">spendable coins</p>
               </div>
-              <button className="w-full py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition active:scale-95">
-                Withdraw Earnings
-              </button>
+              <div className="bg-gradient-to-br from-purple-700 to-indigo-700 rounded-2xl p-5">
+                <p className="text-purple-200 text-xs mb-1">$WATCH Points</p>
+                <p className="text-3xl font-bold text-white">{watchContribution.toLocaleString()}</p>
+                <p className="text-purple-200 text-xs mt-1">pending TrustedCrypto settlement</p>
+              </div>
             </div>
+            <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:opacity-90 transition active:scale-95 mb-6">
+              Withdraw via TrustedCrypto
+            </button>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <MetricCard

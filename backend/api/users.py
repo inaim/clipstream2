@@ -14,8 +14,8 @@ class UserProfile(BaseModel):
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     created_at: Optional[str] = None
-    watch_tokens: int = 0
-    watch_tokens_pending: int = 0
+    watch_tokens: int = 0                # $WATCH contribution points (determines creator's revenue share)
+    watch_contribution_pending: int = 0  # points earned, awaiting TrustedCrypto settlement
 
 @router.get("/{user_id}", response_model=UserProfile)
 async def get_user_profile(user_id: str):
@@ -40,7 +40,7 @@ async def get_user_profile(user_id: str):
                 bio=None,
                 created_at=None,
                 watch_tokens=0,
-                watch_tokens_pending=0,
+                watch_contribution_pending=0,
             )
 
         # Extract user_id from the RecordID
@@ -55,7 +55,7 @@ async def get_user_profile(user_id: str):
             bio=user.get('bio'),
             created_at=user.get('created_at'),
             watch_tokens=user.get('watch_tokens', 0),
-            watch_tokens_pending=user.get('watch_tokens_pending', 0)
+            watch_contribution_pending=user.get('watch_contribution_pending', 0)
         )
     except HTTPException:
         raise

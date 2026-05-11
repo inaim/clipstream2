@@ -102,8 +102,8 @@ class SurrealDBClient:
             "email": email,
             "password_hash": password_hash,
             "display_name": display_name or email.split("@")[0],
-            "watch_tokens": 0,
-            "watch_tokens_pending": 0
+            "watch_tokens": 0,           # $WATCH contribution points (not a currency — tracks creator share)
+            "watch_contribution_pending": 0  # points earned, pending TrustedCrypto settlement
         })
         return result if result else None
 
@@ -443,24 +443,34 @@ class SurrealDBClient:
             logger.error(f"Error updating video {video_id}: {e}")
             return False
     
-    async def earn_tokens(self, user_id: str, amount: int, reason: str, video_id: str = None) -> Dict:
+    async def record_contribution(self, user_id: str, amount: int, reason: str, video_id: str = None) -> Dict:
+        """
+        Record $WATCH contribution points for a creator.
+
+        $WATCH points track how much of the platform's revenue pool a creator
+        is entitled to. Actual settlement (paying out that share) happens through
+        TrustedCrypto — this method only updates the contribution ledger.
+        """
         try:
             earning = await self.db.create("earning", {
                 "creator": user_id,
                 "amount": amount,
                 "reason": reason,
                 "video": video_id,
-                "settled_on_chain": False
+                "trustedcrypto_settled": False  # settlement via TrustedCrypto pending
             })
             await self.db.query(
-                "UPDATE $user SET watch_tokens_pending += $amount",
+                "UPDATE $user SET watch_contribution_pending += $amount",
                 {"user": user_id, "amount": amount}
             )
-            # SurrealDB create returns the created record directly
             return earning
         except Exception as e:
-            logger.error(f"Error earning tokens: {e}")
+            logger.error(f"Error recording contribution: {e}")
             raise
+
+    # backwards-compat alias — callers can migrate to record_contribution()
+    async def earn_tokens(self, user_id: str, amount: int, reason: str, video_id: str = None) -> Dict:
+        return await self.record_contribution(user_id, amount, reason, video_id)
     
     async def get_for_you_feed(self, limit: int = 50) -> List[Dict]:
         try:

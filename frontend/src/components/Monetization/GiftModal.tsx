@@ -90,6 +90,9 @@ export function GiftModal({ recipientId, recipientName, videoId, onClose, onSucc
 
       if (creditError) throw creditError;
 
+      // Record in contribution ledger:
+      // - watch_contribution: $WATCH points awarded (tracks creator's revenue share)
+      // - settlement_currency: actual payout will be in TrustedCrypto
       const { error: ledgerError } = await surreal
         .from('creator_partnership_ledger')
         .insert({
@@ -97,6 +100,9 @@ export function GiftModal({ recipientId, recipientName, videoId, onClose, onSucc
           transaction_type: 'revenue',
           amount: totalCost,
           source: 'gifting',
+          settlement_currency: 'trustedcrypto',
+          watch_contribution: Math.floor(totalCost * 0.8), // $WATCH points = 80% of gift value
+          trustedcrypto_settled: false,
           metadata: {
             gift_type: selectedGift.id,
             quantity,

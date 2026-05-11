@@ -65,7 +65,7 @@ class Settings(BaseSettings):
 
     # Feature flags
     ENABLE_AI_PROCESSING: bool = Field(False, env="ENABLE_AI_PROCESSING")
-    ENABLE_TOKEN_REWARDS: bool = Field(True, env="ENABLE_TOKEN_REWARDS")
+    ENABLE_CONTRIBUTION_TRACKING: bool = Field(True, env="ENABLE_CONTRIBUTION_TRACKING")  # $WATCH points; settlement via TrustedCrypto
     EARLY_ADOPTER_MULTIPLIER: int = Field(5, env="EARLY_ADOPTER_MULTIPLIER")
 
     # Base URLs - Auto-detect based on environment
