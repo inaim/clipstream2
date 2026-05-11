@@ -31,11 +31,11 @@ Decentralised alternatives exist but sacrifice performance: 15–30 second load 
 ClipStream is a hybrid platform that delivers TikTok-speed content discovery with on-chain creator ownership:
 
 - **Same algorithm, open source** — ByteDance's Monolith recommendation engine ([arXiv:2209.07663](https://arxiv.org/abs/2209.07663)) implemented openly, with near real-time (~100ms) preference updates
-- **80% revenue to creators** — gifts, ad share, and $WATCH token distributions via transparent Merkle tree claims
+- **80% revenue to creators** — gifts and ad share settled in [TrustedCrypto](https://github.com/al-khwarizme/TrustedCrypto); $WATCH tracks contribution (views, watch time, brand-safe uploads) and determines each creator's share
 - **Permanent ownership** — every video stored on IPFS with an immutable CID; creators control their catalog regardless of platform policy
 - **70% lower storage cost** — hot content on CDN, cold content on Filecoin archival
 
-> **Companion project:** [TrustedCrypto](https://github.com/al-khwarizme/TrustedCrypto) — the asset-backed, community-owned currency infrastructure powering the payment rails.
+> **Two-layer economics:** $WATCH measures contribution — TrustedCrypto settles it. See [TrustedCrypto →](https://github.com/al-khwarizme/TrustedCrypto)
 
 ---
 
@@ -64,7 +64,7 @@ ClipStream is a hybrid platform that delivers TikTok-speed content discovery wit
 | **AI / ML** | CLIP video understanding | 512-dimensional semantic embeddings for precise content matching |
 | **AI / ML** | Auto-captions | OpenAI Whisper, multi-language |
 | **Storage** | Hybrid CDN + IPFS | Hot content on CDN, cold on Filecoin — 70% cost reduction |
-| **Economics** | 80% creator revenue share | Gifts, ad share, $WATCH quarterly distributions |
+| **Economics** | 80% creator revenue share | Gifts + ad share settled via TrustedCrypto; $WATCH tracks contribution share |
 | **Economics** | On-chain ownership | Immutable IPFS CIDs — content survives platform policy changes |
 | **Scale** | TikTok-grade feed | < 50ms p95 API response, 10 000+ concurrent users |
 | **i18n** | 8 languages | EN, ES, FR, DE, ZH, JA, AR, RU — RTL support included |
@@ -162,7 +162,7 @@ The remaining Monolith feature: automatic model retraining every 60 seconds from
 | Cache / Queue | Redis 7 · Celery 5.3 |
 | Storage | IPFS (Kubo) · Filecoin |
 | AI/ML | OpenAI CLIP · Whisper · Custom moderation models |
-| Blockchain | Polygon · ERC-20 ($WATCH) · Solidity · Merkle distributions |
+| Blockchain | Polygon · ERC-20 ($WATCH contribution tracking) · Solidity · TrustedCrypto settlement |
 
 ---
 
@@ -302,9 +302,14 @@ Full interactive docs at `http://localhost:8080/docs` · Static reference: [docs
 
 ### Tokenomics
 
-$WATCH (ERC-20 on Polygon) rewards views, watch time, and brand-safe uploads. Quarterly distributions via Merkle tree claims — verifiable on-chain, no trusted intermediary.
+ClipStream uses a two-layer model so the platform's reward mechanism doesn't compete with its payment infrastructure:
 
-> See the companion project [TrustedCrypto](https://github.com/al-khwarizme/TrustedCrypto) for the asset-backed currency infrastructure.
+| Layer | Token | Role |
+|---|---|---|
+| **Contribution tracking** | $WATCH (ERC-20, Polygon) | Records views, watch time, and brand-safe uploads — determines each creator's proportional share |
+| **Settlement** | [TrustedCrypto](https://github.com/al-khwarizme/TrustedCrypto) | Asset-backed, community-owned currency that actually moves value to creators |
+
+$WATCH is not a currency — it is a contribution ledger. When distributions occur, $WATCH balances determine *how much* each creator receives; TrustedCrypto determines *what* they receive it in. The two projects are complementary: ClipStream generates the activity, TrustedCrypto settles it.
 
 ---
 
@@ -316,7 +321,7 @@ $WATCH (ERC-20 on Polygon) rewards views, watch time, and brand-safe uploads. Qu
 - [x] SSE-based preference loop (~100ms end-to-end)
 - [x] IPFS content storage + hybrid CDN delivery
 - [x] Virtual gifts and creator earnings dashboard
-- [x] $WATCH ERC-20 token + Merkle distribution
+- [x] $WATCH ERC-20 contribution tracking token
 - [x] 8-language i18n with RTL support
 - [x] TikTok video auto-ingestion (Playwright headless, trending hashtags)
 
