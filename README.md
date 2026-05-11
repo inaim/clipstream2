@@ -821,19 +821,44 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ---
 
-## 🤝 Contributing
+## 🤝 Join the Build — Developer Call to Action
 
-We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
+We are combining two things that have never shipped together in open source:
 
-### **How to Contribute**
+1. **ByteDance's Monolith architecture** ([arXiv:2209.07663](https://arxiv.org/abs/2209.07663)) — the actual recommendation engine behind TikTok's For You page, implemented open-source with collisionless embeddings, frequency filtering, TTL expiry, and near real-time SSE preference updates (~100ms)
+
+2. **Creator-owned content economics** — an 80% net revenue share, on-chain ownership via IPFS/Filecoin, and a transparent $WATCH token profit-distribution model that treats creators as equity participants, not tenants
+
+The goal: a platform where the content provider *is* the owner — algorithmically competitive with TikTok, economically structured like a creator cooperative.
+
+### What we're building toward
+
+| Layer | Status | What's needed |
+|---|---|---|
+| Monolith Phase 1 (memory-efficient embeddings) | ✅ Done | — |
+| Near real-time SSE preference loop | ✅ Done | — |
+| Monolith Phase 2 — online model retraining (60s cycle) | 🚧 Open | ML engineers |
+| Filecoin archival + proof-of-storage | 🚧 Open | Web3 engineers |
+| DAO governance + on-chain revenue distribution | 🚧 Open | Solidity / tokenomics |
+| iOS / Android mobile apps | 🚧 Open | React Native engineers |
+| Live streaming layer | 🚧 Open | WebRTC / media engineers |
+
+### If you want to contribute
+
+The most impactful open area right now is **Monolith Phase 2: online training** — closing the loop so the model retrains every 60 seconds from live interaction events, exactly as ByteDance does in production. See [docs/architecture/MONOLITH_ANALYSIS.md](docs/architecture/MONOLITH_ANALYSIS.md) for a full breakdown of what's implemented vs what's missing.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'feat: add some amazing feature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Read [docs/architecture/MONOLITH_ANALYSIS.md](docs/architecture/MONOLITH_ANALYSIS.md) and [docs/architecture/MONOLITH_FEATURES_IMPLEMENTED.md](docs/architecture/MONOLITH_FEATURES_IMPLEMENTED.md)
+3. Pick an open item from the table above or open an issue with a proposal
+4. Submit a PR — we review fast
 
-### **Development Setup**
+```bash
+git clone https://github.com/inaim/clipstream2
+cd clipstream2
+bash START_TIKTOK_PLATFORM.sh
+```
+
+### Development setup
 
 ```bash
 # Install pre-commit hooks
