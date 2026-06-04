@@ -24,12 +24,12 @@ The economic model allocates 80% of net profits to creators through a token-base
 2. Related Work & Competitive Analysis
 3. System Architecture
 4. Hybrid Data Flow & Storage Strategy
-5. AI Integration & Optimization
+5. AI Integration & Optimisation
 6. Token Economics & Profit Distribution
 7. Governance Model
 8. Legal & Regulatory Framework
 9. Technical Implementation
-10. Economic Modeling & Projections
+10. Economic Modelling & Projections
 11. Roadmap & Milestones
 12. Risk Analysis & Mitigation
 13. Team & Advisors
@@ -288,7 +288,7 @@ Potential savings:        £52.6M/year → flows to creator profit pool
 
 ---
 
-## 5. AI Integration & Optimization
+## 5. AI Integration & Optimisation
 
 ### 5.1 Content Understanding Pipeline
 
@@ -1764,7 +1764,7 @@ async def upload_video_async(video: UploadFile, current_user: str):
 
 ---
 
-## 10. Economic Modeling & Projections
+## 10. Economic Modelling & Projections
 
 ### 10.1 Revenue Model
 
