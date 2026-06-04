@@ -8,13 +8,13 @@
 
 ## Abstract
 
-Current video platforms exploit creators through opaque algorithms, extracting 60-90% of revenue while maintaining total control over content distribution and monetization. Existing decentralized alternatives sacrifice user experience for ideological purity, resulting in 15-30 second load times that prevent mainstream adoption.
+Current video platforms exploit creators through opaque algorithms, extracting 60-90% of revenue while maintaining total control over content distribution and monetisation. Existing Decentralised alternatives sacrifice user experience for ideological purity, resulting in 15-30 second load times that prevent mainstream adoption.
 
-Clipostream proposes a hybrid architecture combining centralized content delivery (Web2) with decentralized storage and ownership (Web3). Through intelligent AI-powered routing between high-speed CDN and IPFS archival storage, the platform achieves sub-second load times while ensuring permanent content ownership and transparent algorithmic ranking.
+Clipostream proposes a hybrid architecture combining Centralised content delivery (Web2) with Decentralised storage and ownership (Web3). Through intelligent AI-powered routing between high-speed CDN and IPFS archival storage, the platform achieves sub-second load times while ensuring permanent content ownership and transparent algorithmic ranking.
 
-The economic model allocates 80% of net profits to creators through a token-based profit-participation system, with governance rights proportional to platform contribution. By leveraging AI for cost optimization and accepting jurisdiction-specific compliance requirements, the architecture achieves projected cost savings of up to 60% compared to traditional platforms while maintaining regulatory compliance in major markets.
+The economic model allocates 80% of net profits to creators through a token-based profit-participation system, with governance rights proportional to platform contribution. By leveraging AI for cost optimisation and accepting jurisdiction-specific compliance requirements, the architecture achieves projected cost savings of up to 60% compared to traditional platforms while maintaining regulatory compliance in major markets.
 
-**Key Innovation:** Most of the world (70-80% of users) operates on truly decentralized global IPFS infrastructure, while high-regulation jurisdictions (EU, UK, California) use compliant regional architecture. Monetization operates through jurisdiction-specific payment rails, with tokens serving as internal profit allocation mechanism rather than tradeable securities.
+**Key Innovation:** Most of the world (70-80% of users) operates on truly Decentralised global IPFS infrastructure, while high-regulation jurisdictions (EU, UK, California) use compliant regional architecture. Monetization operates through jurisdiction-specific payment rails, with tokens serving as internal profit allocation mechanism rather than tradeable securities.
 
 ---
 
@@ -49,13 +49,13 @@ The global creator economy reached $250B in 2024, with over 200M active content 
 - YouTube: 45% revenue share to platform
 - TikTok: 50% revenue share to platform (Creator Fund)
 - Instagram/Facebook: 100% retention of ad revenue for most creators
-- OnlyFans: 20% platform fee (best in industry, still centralized control)
+- OnlyFans: 20% platform fee (best in industry, still Centralised control)
 
 **Algorithmic Opacity:**
 - Recommendation algorithms are proprietary black boxes
 - No explanation for viral success or failure
 - Policy changes implemented unilaterally
-- Shadow-banning and demonetization without recourse
+- Shadow-banning and demonetisation without recourse
 
 **Content Vulnerability:**
 - Platform owns hosting infrastructure
@@ -65,7 +65,7 @@ The global creator economy reached $250B in 2024, with over 200M active content 
 
 ### 1.2 Why Existing Solutions Failed
 
-**Pure Decentralization (Web3-Only Platforms):**
+**Pure decentralisation (Web3-Only Platforms):**
 
 **DTube (2017-2020):**
 - Stored all content on Steem blockchain
@@ -80,12 +80,12 @@ The global creator economy reached $250B in 2024, with over 200M active content 
 - Remains niche technical solution
 
 **Livepeer (2018-present):**
-- Best-in-class decentralized transcoding
+- Best-in-class Decentralised transcoding
 - No consumer-facing product
 - Infrastructure-only play
 - Developers use it, creators don't know it exists
 
-**Pattern:** All sacrificed user experience for ideological purity. Mainstream users demand TikTok-level performance. Decentralization alone is insufficient.
+**Pattern:** All sacrificed user experience for ideological purity. Mainstream users demand TikTok-level performance. decentralisation alone is insufficient.
 
 **Pure Centralization (Existing Platforms):**
 
@@ -99,7 +99,7 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 **Thesis:** The technology exists to achieve both Web2 performance AND Web3 ownership guarantees. The barrier is architectural, not technical.
 
-**Key Insight:** Content doesn't need to be decentralized for playback—only for archival proof and censorship resistance. Users expect instant playback. Creators need permanent ownership proof.
+**Key Insight:** Content doesn't need to be Decentralised for playback—only for archival proof and censorship resistance. Users expect instant playback. Creators need permanent ownership proof.
 
 **Solution:** Intelligent hybrid routing:
 - Hot content (0-30 days): High-speed CDN
@@ -111,7 +111,7 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 ## 2. Related Work & Competitive Analysis
 
-### 2.1 Centralized Platforms
+### 2.1 Centralised Platforms
 
 | Platform | Revenue Share | Algorithmic Transparency | Content Ownership | Governance |
 |----------|---------------|-------------------------|-------------------|------------|
@@ -125,13 +125,13 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 **Disadvantages:** Creator exploitation, no ownership, opaque algorithms, arbitrary policy changes
 
-### 2.2 Decentralized Platforms
+### 2.2 Decentralised Platforms
 
 | Platform | Architecture | Performance | Creator Economics | Status |
 |----------|-------------|-------------|-------------------|--------|
 | DTube | Pure blockchain | 15-30s load | Token rewards | Failed (2020) |
 | Theta | P2P CDN | Variable | None | Niche (infrastructure) |
-| Livepeer | Decentralized transcoding | N/A | None | Infrastructure only |
+| Livepeer | Decentralised transcoding | N/A | None | Infrastructure only |
 | LBRY | Blockchain + P2P | 3-10s load | LBC token | Active but small |
 | Odysee | LBRY-based | 2-5s load | LBC rewards | <1M users |
 
@@ -151,7 +151,7 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 **Scalability:** Jurisdiction-specific architecture (pragmatic compliance)
 
-**Cost Efficiency:** AI-optimized hybrid routing (projected 60% savings vs traditional platforms)
+**Cost Efficiency:** AI-optimised hybrid routing (projected 60% savings vs traditional platforms)
 
 ---
 
@@ -221,8 +221,8 @@ The platform is composed of four layers operating in parallel beneath a single a
 
 **Regional Nodes (EU/UK/California - 20-30% of users):**
 - Jurisdiction-specific IPFS clusters
-- EU data stored only in EU data centers
-- California data in California data centers
+- EU data stored only in EU data centres
+- California data in California data centres
 - Compliance with local data residency laws
 
 **Database Sharding:**
@@ -284,7 +284,7 @@ Potential savings:        £52.6M/year → flows to creator profit pool
 - IPFS retrieval needed for <5% of requests (cold archival content)
 - CDN negotiated enterprise rates (£85/TB egress)
 
-**Note:** Actual savings depend on content type (gaming vs talking head), viewer geography (CDN proximity), and caching efficiency. 30-60% savings range is realistic under favorable conditions. Conservative estimate: 30% savings, optimistic: 60%.
+**Note:** Actual savings depend on content type (gaming vs talking head), viewer geography (CDN proximity), and caching efficiency. 30-60% savings range is realistic under favourable conditions. Conservative estimate: 30% savings, optimistic: 60%.
 
 ---
 
@@ -397,7 +397,7 @@ This gives Clipstream day-one feed quality equivalent to a mature platform, whil
 
 **1. Collaborative Filtering:**
 ```python
-# User-user similarity via matrix factorization
+# User-user similarity via matrix factorisation
 from sklearn.decomposition import NMF
 
 # Viewing matrix: users × videos
@@ -468,7 +468,7 @@ Final Score =
     0.05 × creator_token_weight
 
 Where:
-- collaborative_score: Matrix factorization prediction (own platform data)
+- collaborative_score: Matrix factorisation prediction (own platform data)
 - content_similarity: CLIP embedding cosine similarity
 - tiktok_signal_score: Normalized TikTok engagement (views + likes) at ingestion time;
                        weight decays to 0 as own-platform engagement accumulates
@@ -551,7 +551,7 @@ if viral_prob > 0.7:  # High confidence prediction
 
 | Action | Reward | Limit | Rationale |
 |--------|--------|-------|-----------|
-| Upload video (>60s) | 10 tokens | Unlimited | Incentivize content creation |
+| Upload video (>60s) | 10 tokens | Unlimited | Incentivise content creation |
 | Reach 100K views | 50 tokens | Per video | Reward quality content |
 | Reach 1M views | 100 tokens | Per video | Reward viral success |
 | Reach 10M views | 500 tokens | Per video | Reward exceptional content |
@@ -633,7 +633,7 @@ Annualized: £20,800/year from 0.1% ownership
 
 | Type | Examples | Quorum | Approval | Execution |
 |------|----------|--------|----------|-----------|
-| Minor | UI changes, feature prioritization | 5% | 51% | Immediate |
+| Minor | UI changes, feature prioritisation | 5% | 51% | Immediate |
 | Standard | Revenue split adjustment (78/22 vs 80/20) | 10% | 60% | 7-day delay |
 | Major | Platform architecture changes | 20% | 67% | 30-day delay |
 | Critical | Token economics overhaul | 30% | 75% | 60-day delay |
@@ -699,10 +699,10 @@ Payment Rails (Stripe/Bank Transfer):
 
 ## 7. Governance Model
 
-### 7.1 Decentralized Autonomous Organization (DAO) Structure
+### 7.1 Decentralised Autonomous Organization (DAO) Structure
 
 **Initial Launch (Months 0-12):**
-- Centralized decision-making by founding team
+- Centralised decision-making by founding team
 - Build core platform and establish product-market fit
 - Community feedback via forums, but no binding votes
 - Rationale: Need rapid iteration during MVP phase
@@ -722,7 +722,7 @@ Payment Rails (Stripe/Bank Transfer):
 ### 7.2 Governance Categories
 
 **1. Platform Operations (51% approval):**
-- Feature prioritization
+- Feature prioritisation
 - UI/UX improvements
 - Marketing initiatives
 - Partnership approvals
@@ -811,7 +811,7 @@ Status: Implemented on [date]
 
 **Three-Tier Approach:**
 
-**Tier 1: Global Decentralized (70-80% of users)**
+**Tier 1: Global Decentralised (70-80% of users)**
 
 **Applicable Jurisdictions:**
 - Most of United States (45+ states except California)
@@ -824,7 +824,7 @@ Status: Implemented on [date]
 **Architecture:**
 - Global IPFS network (content distributed across 20+ countries)
 - No data residency restrictions
-- Full decentralization benefits
+- Full decentralisation benefits
 - Permanent content storage with cryptographic proof
 - Minimal compliance overhead
 
@@ -841,7 +841,7 @@ Status: Implemented on [date]
 - Data residency compliance
 - True deletion capability (remove chunks from regional nodes)
 - Higher operational costs (separate infrastructure)
-- Same profit-sharing benefits, reduced decentralization
+- Same profit-sharing benefits, reduced decentralisation
 
 **Tier 3: Excluded Markets (Incompatible with Vision)**
 
@@ -935,7 +935,7 @@ A token is a security if it involves:
 
 **Compliance Requirements:**
 - White paper publication (this document)
-- Issuer authorization in EU member state
+- Issuer authorisation in EU member state
 - Consumer protection disclosures
 - Market abuse prevention
 
@@ -2022,7 +2022,7 @@ Example: Creator with 10,000 tokens
 - Sub-2-second average load time
 - 70%+ user retention after 7 days
 
-### 11.2 Phase 2: Decentralization + Token Economics (Months 7-12)
+### 11.2 Phase 2: decentralisation + Token Economics (Months 7-12)
 
 **Month 7-8: IPFS Integration**
 - [ ] IPFS node setup (global + regional clusters)
@@ -2059,7 +2059,7 @@ Example: Creator with 10,000 tokens
 - [ ] React Native Android app
 - [ ] Push notifications
 - [ ] Offline viewing (download feature)
-- [ ] Mobile-optimized upload flow
+- [ ] Mobile-optimised upload flow
 
 **Month 15-16: Advanced Features**
 - [ ] Live streaming (WebRTC)
@@ -2100,7 +2100,7 @@ Example: Creator with 10,000 tokens
 
 **Month 23-24: Optimization & Maturity**
 - [ ] AI model v2 (improved recommendations)
-- [ ] Cost optimization (reduce CDN spend 20%)
+- [ ] Cost optimisation (reduce CDN spend 20%)
 - [ ] Advanced moderation tools
 - [ ] Creator education program
 - [ ] Prepare for Series A fundraising (if going VC route)
@@ -2116,12 +2116,12 @@ Example: Creator with 10,000 tokens
 
 **Scale to 10M+ users:**
 - Rival TikTok/YouTube for niche creator communities
-- Become default platform for demonetized creators
+- Become default platform for demonetised creators
 - Establish as leader in creator-owned infrastructure
 
 **Feature Roadmap:**
 - Advanced AI (personalized video generation, editing assistance)
-- Decentralized CDN (peer-to-peer content delivery)
+- Decentralised CDN (peer-to-peer content delivery)
 - Cross-platform portability (export to other platforms)
 - Creator cooperatives (guilds for collective bargaining)
 - Web3 integrations (token-gated content, NFT utilities)
@@ -2148,7 +2148,7 @@ Example: Creator with 10,000 tokens
 - Pre-fetch predicted popular older content to CDN cache
 - Implement predictive caching based on search trends
 - Show loading indicator: "Retrieving from permanent archive"
-- Target <3-second retrieval with optimization
+- Target <3-second retrieval with optimisation
 - If unsolvable: Consider longer CDN retention (60-90 days vs 30)
 
 **Risk 2: AI Model Bias**
@@ -2237,7 +2237,7 @@ Example: Creator with 10,000 tokens
 
 **Mitigation:**
 - Paid seed creators (500 creators × £5K = £2.5M investment)
-- Target niche communities first (Web3, demonetized creators)
+- Target niche communities first (Web3, demonetised creators)
 - Pre-launch waitlist building (marketing campaign)
 - Partner with existing creator collectives
 - Offer 5x token multiplier for early adopters (12 months)
@@ -2251,7 +2251,7 @@ Example: Creator with 10,000 tokens
 **Impact:** High (harder to differentiate)
 
 **Mitigation:**
-- Decentralization and ownership are unforkable (requires structural change)
+- decentralisation and ownership are unforkable (requires structural change)
 - Transparent algorithms = unique selling point
 - Governance rights = true ownership (not just revenue share)
 - First-mover advantage in creator-owned space
@@ -2269,7 +2269,7 @@ Example: Creator with 10,000 tokens
 - Payouts in stable currency (USDC/USD/EUR), not tokens
 - Tokens = accounting mechanism, not payment currency
 - Sell limits (10% per month) reduce manipulation
-- Large token holdings by platform (20% reserve) can stabilize
+- Large token holdings by platform (20% reserve) can stabilise
 - Governance can adjust economic parameters if needed
 
 **Risk 10: Funding Shortfall**
@@ -2476,6 +2476,6 @@ Example: Creator with 10,000 tokens
 
 ### 15.1 Summary
 
-Clipostream addresses a fundamental inefficiency in the creator economy: platforms extract 60-90% of value while providing no ownership or transparency to creators. Existing decentralized alternatives failed by prioritizing ideology over user experience, resulting in unusable platforms with 15-30 second load times.
+Clipostream addresses a fundamental inefficiency in the creator economy: platforms extract 60-90% of value while providing no ownership or transparency to creators. Existing Decentralised alternatives failed by prioritizing ideology over user experience, resulting in unusable platforms with 15-30 second load times.
 
 The hybrid architecture proposed here achieves both objectives# Clipostream: Technical Whitepaper
