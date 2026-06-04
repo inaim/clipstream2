@@ -14,7 +14,7 @@ Clipostream proposes a hybrid architecture combining Centralised content deliver
 
 The economic model allocates 80% of net profits to creators through a token-based profit-participation system, with governance rights proportional to platform contribution. By leveraging AI for cost optimisation and accepting jurisdiction-specific compliance requirements, the architecture achieves projected cost savings of up to 60% compared to traditional platforms while maintaining regulatory compliance in major markets.
 
-**Key Innovation:** Most of the world (70-80% of users) operates on truly Decentralised global IPFS infrastructure, while high-regulation jurisdictions (EU, UK, California) use compliant regional architecture. Monetization operates through jurisdiction-specific payment rails, with tokens serving as internal profit allocation mechanism rather than tradeable securities.
+**Key Innovation:** Most of the world (70-80% of users) operates on truly Decentralised global IPFS infrastructure, while high-regulation jurisdictions (EU, UK, California) use compliant regional architecture. Monetisation operates through jurisdiction-specific payment rails, with tokens serving as internal profit allocation mechanism rather than tradeable securities.
 
 ---
 
@@ -87,7 +87,7 @@ The global creator economy reached $250B in 2024, with over 200M active content 
 
 **Pattern:** All sacrificed user experience for ideological purity. Mainstream users demand TikTok-level performance. decentralisation alone is insufficient.
 
-**Pure Centralization (Existing Platforms):**
+**Pure Centralisation (Existing Platforms):**
 
 Platforms like YouTube and TikTok achieve excellent performance but:
 - Extract maximum value from creators
@@ -1074,17 +1074,17 @@ A token is a security if it involves:
 **US Privacy Shield Invalidated (Schrems II):**
 - Cannot rely on Privacy Shield for EU-US transfers
 - Must use SCCs + supplementary measures
-- Data minimization (transfer only necessary data)
+- Data minimisation (transfer only necessary data)
 - Encryption in transit and at rest
 
-**China Data Localization:**
+**China Data Localisation:**
 - Not operating in China (excluded market)
 - If any Chinese users: All data stored in China
 - Government access requirements incompatible with vision
 
 **APAC Data Transfers:**
 - Singapore: Generally permissible
-- India: Localization requirements for certain data types
+- India: Localisation requirements for certain data types
 - Australia: Privacy Act requires notification
 
 ---
@@ -2107,7 +2107,7 @@ Example: Creator with 10,000 tokens
 
 **Success Criteria:**
 - 500,000 monthly active users
-- £15M+ in quarterly revenue (£60M annualized)
+- £15M+ in quarterly revenue (£60M annualised)
 - £12M+ in quarterly creator payouts
 - Operating in 5+ major markets with full compliance
 - Net promoter score (NPS) >50
@@ -2120,7 +2120,7 @@ Example: Creator with 10,000 tokens
 - Establish as leader in creator-owned infrastructure
 
 **Feature Roadmap:**
-- Advanced AI (personalized video generation, editing assistance)
+- Advanced AI (personalised video generation, editing assistance)
 - Decentralised CDN (peer-to-peer content delivery)
 - Cross-platform portability (export to other platforms)
 - Creator cooperatives (guilds for collective bargaining)
@@ -2260,7 +2260,7 @@ Example: Creator with 10,000 tokens
 
 **Risk 9: Token Value Volatility**
 
-**Description:** If tokens become tradeable, price volatility may destabilize creator earnings.
+**Description:** If tokens become tradeable, price volatility may destabilise creator earnings.
 
 **Likelihood:** High (if tokens tradeable)
 **Impact:** Medium (creator income uncertainty)
@@ -2397,7 +2397,7 @@ Example: Creator with 10,000 tokens
 
 **Month 13-18:**
 - Scale team to 30-40 people
-- Specialized roles (legal, compliance, finance)
+- Specialised roles (legal, compliance, finance)
 - Regional teams (EU, US, Asia)
 - Creator success team
 
@@ -2476,6 +2476,12 @@ Example: Creator with 10,000 tokens
 
 ### 15.1 Summary
 
-Clipostream addresses a fundamental inefficiency in the creator economy: platforms extract 60-90% of value while providing no ownership or transparency to creators. Existing Decentralised alternatives failed by prioritizing ideology over user experience, resulting in unusable platforms with 15-30 second load times.
+Clipostream addresses a fundamental inefficiency in the creator economy: platforms extract 60-90% of value while providing no ownership or transparency to creators. Existing Decentralised alternatives failed by prioritising ideology over user experience, resulting in unusable platforms with 15-30 second load times.
 
-The hybrid architecture proposed here achieves both objectives# Clipostream: Technical Whitepaper
+The hybrid architecture proposed here achieves both objectives: Web2 performance for users and Web3 ownership for creators. The $WATCH token system aligns incentives without requiring speculation — tokens are earned through contribution, not purchased as investment. Governance transitions from founding team to community DAO as the platform matures.
+
+The creator economy crisis is architectural, not ideological. Clipstream is the infrastructure layer that resolves it.
+
+---
+
+*Version 1.0 | October 2025 | Issam Naim — i.naim@finailabz.com | GitHub: [inaim-finailabz/clipstream2](https://github.com/inaim-finailabz/clipstream2)*
