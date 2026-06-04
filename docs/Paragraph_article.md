@@ -1,39 +1,3 @@
-ClipStream demo (technical paragraph)
-
-This repository contains a lightweight, locally runnable demo of a video platform architecture designed to illustrate origin storage, CDN caching behavior, and a frontend that can switch between Supabase and a local backend (which optionally mirrors metadata to SurrealDB). The demo is intentionally minimal: static origin files and uploaded blobs are served by an `origin` nginx, a `cdn` nginx reverse-proxy exercises `proxy_cache` behavior (showing MISS/HIT via `X-Cache-Status`), and a small FastAPI backend provides JWT auth, upload endpoints, playback URL resolution, and simple ledger/views bookkeeping. The React frontend is built with Vite and can operate in three modes: (1) full Supabase (requires env vars and a Supabase project), (2) demo backend adapter (set `VITE_USE_BACKEND=true` and `VITE_BACKEND_URL`), or (3) in-memory local mocks for quick UI testing. Uploads via the demo backend are stored under `demo-sim/storage/uploads`; the backend writes a `.todo` marker next to uploaded files for later transcoding (transcoder not included). For rapid testing, the demo includes a script `demo-sim/test/test_cache.sh` to exercise `cache MISS -> cache HIT` cycles and to demonstrate cache bypass with `Cache-Control: no-cache`.
-
-Key technical notes:
-- Architecture: origin (nginx) serves static files and uploads; backend (FastAPI) offers REST endpoints; CDN (nginx proxy_cache) simulates edge caching. Docker Compose in `demo-sim/` wires these services together for local testing.
-- Frontend wiring: `frontend/src/lib/supabase.ts` exports either a real Supabase client, a demo `backendClient` adapter (calls `/api/*` on the demo backend), or an in-memory mock. The upload UI uses `src/lib/demoApi.ts` helpers when `VITE_USE_BACKEND=true`.
-- Storage: uploads are saved to `demo-sim/storage/uploads` (mounted into origin and backend containers). The backend computes a content hash and writes `.todo` markers for off-line processing.
-- SurrealDB mirroring: the demo backend conditionally posts SQL to `SURREALDB_URL` after creating users or videos; this is optional and requires a running SurrealDB instance with HTTP SQL enabled.
-- Env vars: set `VITE_USE_BACKEND=true` and `VITE_BACKEND_URL=http://localhost:8000` for the frontend to call the demo backend. Backend envs include `DEMO_SECRET_KEY`, `DEMO_DB`, and optional `SURREALDB_URL`.
-- Troubleshooting: If you see `require is not defined` in the browser, ensure all frontend modules use ESM imports (I replaced CommonJS `require` usages in `frontend/src/lib/demoApi.ts` and `frontend/src/lib/supabase.ts`). If the frontend build fails with i18n duplicate key warnings, fix duplicated keys in `src/lib/i18n.ts`.
-
-Run steps (quick):
-1. Start the demo stack from the `demo-sim/` directory:
-
-```bash
-cd demo-sim
-docker compose up -d --build
-```
-
-2. Start the frontend (in project root):
-
-```bash
-cd frontend
-VITE_USE_BACKEND=true VITE_BACKEND_URL=http://localhost:8000 npm run dev
-```
-
-3. Use the UI to sign up / log in and upload a video. Watch `demo-sim/origin` logs and `demo-sim/cdn` responses for `X-Cache-Status` to observe MISS → HIT behavior. Run `demo-sim/test/test_cache.sh` to exercise caching.
-
-Next steps and improvements:
-- Add a small ffmpeg-based transcoder service to the Compose stack that watches `.todo` files and produces AV1 or HLS outputs, updating backend metadata when done.
-- Replace the demo SQLite persistence with a SurrealDB-first adapter and provide migration SQL/schema files under `infra/`.
-- Harden auth and token handling (rate limits, refresh tokens, session revocation) and add unit tests for critical endpoints.
-
-This paragraph is intended to be a living summary — tell me which area you'd like expanded (deployment, SurrealDB schema, transcoder, or front-end test scenarios) and I will add a detailed section.
-
 ## A Hybrid Architecture for Creator-Owned Video Distribution
 
 **Version 1.0 | October 2025**
@@ -195,40 +159,15 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 ### 3.1 Core Components
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    API Gateway Layer                         │
-│              (FastAPI - Async Request Handling)              │
-└─────────────────────────────────────────────────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-┌───────▼────────┐  ┌──────▼──────┐  ┌──────▼───────┐
-│   AI Services   │  │  Database   │  │   Storage    │
-│                 │  │   Layer     │  │   Layer      │
-│ • Whisper (STT) │  │             │  │              │
-│ • CLIP          │  │ SurrealDB   │  │ CDN (Hot)    │
-│ • Custom Models │  │ (Multi-     │  │ IPFS (Cold)  │
-│ • Ranking       │  │  Model)     │  │              │
-│                 │  │             │  │              │
-│                 │  │ Redis       │  │              │
-│                 │  │ (Cache)     │  │              │
-└─────────────────┘  └─────────────┘  └──────────────┘
-                           │
-        ┌──────────────────┼──────────────────┐
-        │                  │                  │
-┌───────▼────────┐  ┌──────▼──────┐  ┌──────▼───────┐
-│  Blockchain     │  │  Analytics  │  │  Payment     │
-│  Layer          │  │  Engine     │  │  Rails       │
-│                 │  │             │  │              │
-│ Polygon L2      │  │ Engagement  │  │ Per-Juris    │
-│ (Token Mint)    │  │ Tracking    │  │ Compliance   │
-│                 │  │ View Counts │  │              │
-│ Quarterly       │  │ Revenue     │  │ Stripe       │
-│ Settlement      │  │ Attribution │  │ Payoneer     │
-│                 │  │             │  │ Crypto       │
-└─────────────────┘  └─────────────┘  └──────────────┘
-```
+The platform is composed of four layers operating in parallel beneath a single async API gateway (FastAPI):
+
+**AI Services** — Whisper for speech-to-text captioning (90+ languages), CLIP for semantic video embeddings, and the Monolith-based ranking engine. All AI processing runs asynchronously so uploads return immediately.
+
+**Database Layer** — SurrealDB as the primary multi-model store (document + graph + vector in one database), with Redis for sub-millisecond caching of hot data and Pub/Sub for realtime event broadcasting.
+
+**Storage Layer** — CDN (Cloudflare / AWS CloudFront) for hot content with 50–200ms latency globally, IPFS via Filecoin for permanent encrypted archival of all content older than 30 days.
+
+**Blockchain + Payment Layer** — Polygon L2 for quarterly $WATCH token settlement (low gas, ERC-20 compatible), with per-jurisdiction payment rails: Stripe Connect and Payoneer for fiat, USDC/USDT for crypto-native creators.
 
 ### 3.2 Technology Stack
 
@@ -297,73 +236,20 @@ Platforms like YouTube and TikTok achieve excellent performance but:
 
 ### 4.1 Upload Pipeline
 
-```
-Creator Uploads Video (MP4, MOV, WebM)
-    ↓
-[1] Receive at nearest edge location
-    ↓
-[2] AI Analysis Pipeline (Parallel Processing)
-    ├─ Whisper: Generate multi-language captions
-    ├─ CLIP: Extract semantic embeddings
-    ├─ Custom: Virality prediction score
-    └─ NSFW/Violence: Content safety classification
-    ↓
-[3] Encoding Pipeline (Adaptive Bitrate)
-    ├─ AV1 codec (30% smaller than H.264)
-    ├─ Multiple resolutions: 240p, 360p, 480p, 720p, 1080p, 4K
-    ├─ Thumbnail generation (3-5 keyframes)
-    └─ Preview clip (first 10 seconds)
-    ↓
-[4] Storage Decision (AI-Powered)
-    ├─ IF predicted high engagement:
-    │   └─ Pre-cache to all edge locations
-    ├─ ELSE:
-    │   └─ Store in origin, cache on-demand
-    ↓
-[5] Primary Storage: CDN (30-day hot cache)
-    ↓
-[6] Secondary Storage Decision (Jurisdiction-Based)
-    ├─ IF user in EU/UK/California:
-    │   └─ Encrypt + store in regional IPFS nodes only
-    ├─ ELSE:
-    │   └─ Encrypt + distribute to global IPFS network
-    ↓
-[7] Blockchain Record
-    ├─ Generate content hash (SHA-256)
-    ├─ Record metadata to database
-    ├─ Mint initial $WATCH tokens to creator (10 tokens for upload >60s)
-    └─ Quarterly: Batch settlement to Polygon L2
-```
+1. Video received at nearest edge location (MP4, MOV, WebM)
+2. Parallel AI analysis: Whisper generates captions in 90+ languages; CLIP extracts semantic embeddings; virality prediction model scores the video; NSFW/violence classifier runs content safety
+3. AV1 encoding pipeline produces adaptive bitrate outputs (240p through 4K) — 30% smaller than H.264 — plus 3–5 keyframe thumbnails and a 10-second preview
+4. AI-powered storage decision: high-engagement predictions trigger pre-caching to all global edge locations; others cache on-demand
+5. Primary storage: CDN hot cache (30-day retention, 50–200ms globally)
+6. Jurisdiction-based IPFS archival: EU/UK/California users → encrypted regional IPFS nodes only; all others → global IPFS network
+7. Blockchain record: SHA-256 content hash recorded, metadata written to SurrealDB, 10 $WATCH tokens minted to creator for uploads over 60 seconds; quarterly batch settlement to Polygon L2
 
 ### 4.2 Playback Pipeline
 
-```
-User Requests Video
-    ↓
-[1] Request hits nearest CDN edge location
-    ↓
-[2] Cache Check
-    ├─ IF cached at edge:
-    │   └─ Serve immediately (50-200ms latency)
-    ├─ ELSE IF cached at origin:
-    │   ├─ Fetch from origin CDN (200-500ms)
-    │   └─ Cache at edge for future requests
-    ├─ ELSE (Cold content, 30+ days old):
-    │   ├─ Fetch from IPFS (estimated 5-10s)
-    │   ├─ Decrypt using platform key
-    │   └─ Cache at CDN for 7 days
-    ↓
-[3] Adaptive Bitrate Streaming
-    ├─ HLS protocol (HTTP Live Streaming)
-    ├─ Client measures bandwidth
-    └─ Automatically adjusts quality (240p → 4K)
-    ↓
-[4] Analytics Tracking
-    ├─ View counted after 3 seconds watch time
-    ├─ Engagement metrics (watch time %, likes, shares)
-    ├─ Revenue attribution (ad impressions, if applicable)
-    └─ Token allocation (50 tokens at 100K views, 100 at 1M views)
-```
+1. Request hits nearest CDN edge location
+2. Cache check: edge hit → served in 50–200ms; origin hit → fetched and re-cached at edge (200–500ms); cold content (30+ days) → fetched from IPFS, decrypted, cached at CDN for 7 days
+3. Adaptive bitrate streaming via HLS — the client measures bandwidth and automatically selects quality from 240p to 4K
+4. Analytics: view counted after 3 seconds; engagement metrics (watch ratio, likes, shares) feed into the Monolith-style ranking model in realtime; token allocation triggered at 100K views (50 tokens) and 1M views (100 tokens)
 
 ### 4.3 Storage Cost Optimization
 
